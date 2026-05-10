@@ -257,6 +257,21 @@
     "ts-node": "^10.9.2",
     "typescript": "~5.3.3"
   },
+  "overrides": {
+    "mocha": {
+      "diff": "5.2.2",
+      "js-yaml": "4.1.1",
+      "minimatch": "3.1.4",
+      "nanoid": "3.3.8",
+      "serialize-javascript": "7.0.5"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "9.0.7"
+    },
+    "replace": {
+      "minimatch": "3.1.4"
+    }
+  },
   "engines": {
     "node": "20 - 24"
   },
