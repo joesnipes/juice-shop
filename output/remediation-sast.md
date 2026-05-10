@@ -2,6 +2,7 @@
 
 - **Branch type:** SAST
 - **Branch:** `security-fixes/sast-20260510-152412`
+- **Pull request:** https://github.com/joesnipes/juice-shop/pull/4
 - **Source artifact:** `output/canonical-findings.json`
 - **Fixed:** 0
 - **Developer decision required:** 14
