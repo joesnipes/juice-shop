@@ -21,7 +21,7 @@
       "github_security_url_status": "advisory_urls_available_code_scanning_url_unavailable",
       "status": "developer_decision_required",
       "branch": "security-fixes/sca-20260510-152412",
-      "pull_request_url": null,
+      "pull_request_url": "https://github.com/joesnipes/juice-shop/pull/3",
       "vulnerable_code": {
         "file": "package.json; lib/insecurity.ts",
         "lines": "package.json:135,156; lib/insecurity.ts:22-57,156-164,188-199",
@@ -51,7 +51,7 @@
       "github_security_url_status": "advisory_url_available_code_scanning_url_unavailable",
       "status": "developer_decision_required",
       "branch": "security-fixes/sca-20260510-152412",
-      "pull_request_url": null,
+      "pull_request_url": "https://github.com/joesnipes/juice-shop/pull/3",
       "vulnerable_code": {
         "file": "package.json; routes/b2bOrder.ts",
         "lines": "package.json:167; routes/b2bOrder.ts:16-24",

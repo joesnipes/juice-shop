@@ -2,6 +2,7 @@
 
 - **Branch type:** SCA
 - **Branch:** `security-fixes/sca-20260510-152412`
+- **Pull request:** https://github.com/joesnipes/juice-shop/pull/3
 - **Source artifact:** `output/canonical-findings.json`
 - **Fixed:** 0
 - **Developer decision required:** 2
