@@ -2,7 +2,7 @@
 
 - SCA branch: none created. No confirmed dependency-only remediation could be applied safely without approving a Node/runtime and JWT middleware upgrade path.
 - SAST branch: `security-fixes/sast-20260510-210334`
-- PR URL: pending
+- PR URL: https://github.com/joesnipes/juice-shop/pull/9
 - Direct GitHub security alert URLs were unavailable in `output/findings.json`/SARIF, so repository code-scanning/dependabot search URLs are recorded.
 
 ## Validation
