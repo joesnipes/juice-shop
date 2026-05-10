@@ -1,0 +1,32 @@
+{
+  "threat_model_version": "1.0.0",
+  "last_updated": "2026-05-10T00:00:00.000Z",
+  "security_team_contacts": [],
+  "compliance_requirements": ["PCI DSS", "GDPR"],
+  "scan_frequency": "on_commit",
+  "severity_thresholds": {
+    "block_merge": ["CRITICAL"],
+    "require_review": ["HIGH", "CRITICAL"],
+    "notify_security_team": ["CRITICAL"]
+  },
+  "vulnerability_patterns": {
+    "enabled": [
+      "sql_injection",
+      "nosql_injection",
+      "xss",
+      "command_injection",
+      "server_side_template_injection",
+      "path_traversal",
+      "zip_slip",
+      "xxe",
+      "ssrf",
+      "auth_bypass",
+      "idor",
+      "unsafe_deserialization",
+      "business_logic_abuse",
+      "websocket_abuse",
+      "secrets_exposure"
+    ],
+    "custom_patterns_path": null
+  }
+}
