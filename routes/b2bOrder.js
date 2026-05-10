@@ -1,16 +1,12 @@
 const utils = require('../lib/utils')
 const insecurity = require('../lib/insecurity')
-const safeEval = require('notevil')
-const vm = require('vm')
 const challenges = require('../data/datacache').challenges
 
 module.exports = function b2bOrder () {
   return ({ body }, res, next) => {
-    const orderLinesData = body.orderLinesData || ''
+    const orderLinesData = body.orderLinesData || '[]'
     try {
-      const sandbox = { safeEval, orderLinesData }
-      vm.createContext(sandbox)
-      vm.runInContext('safeEval(orderLinesData)', sandbox, { timeout: 2000 })
+      JSON.parse(orderLinesData)
       res.json({ cid: body.cid, orderNo: uniqueOrderNumber(), paymentDue: dateTwoWeeksFromNow() })
     } catch (err) {
       if (err.message && err.message.match(/Script execution timed out.*/)) {

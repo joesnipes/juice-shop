@@ -134,6 +134,7 @@ app.use('/encryptionkeys', serveIndex('encryptionkeys', { 'icons': true, 'view':
 app.use('/encryptionkeys/:file', keyServer())
 
 /* /logs directory browsing */
+app.use('/support/logs', insecurity.isAuthorized(), insecurity.isAdmin())
 app.use('/support/logs', serveIndex('logs', { 'icons': true, 'view': 'details' }))
 app.use('/support/logs', verify.accessControlChallenges())
 app.use('/support/logs/:file', logFileServer())
@@ -181,14 +182,14 @@ app.use('/api/BasketItems/:id', insecurity.isAuthorized())
 /* Feedbacks: GET allowed for feedback carousel, POST allowed in order to provide feedback without being logged in */
 app.use('/api/Feedbacks/:id', insecurity.isAuthorized())
 /* Users: Only POST is allowed in order to register a new user */
-app.get('/api/Users', insecurity.isAuthorized())
+app.get('/api/Users', insecurity.isAuthorized(), insecurity.isAdmin())
 app.route('/api/Users/:id')
   .get(insecurity.isAuthorized())
   .put(insecurity.denyAll()) // Updating users is forbidden to make the password change challenge harder
   .delete(insecurity.denyAll()) // Deleting users is forbidden entirely to keep login challenges solvable
 /* Products: Only GET is allowed in order to view products */
 app.post('/api/Products', insecurity.isAuthorized())
-// app.put('/api/Products/:id', insecurity.isAuthorized()); // = missing function-level access control vulnerability
+app.put('/api/Products/:id', insecurity.isAuthorized(), insecurity.isAdmin())
 app.delete('/api/Products/:id', insecurity.denyAll()) // Deleting products is forbidden entirely to keep the O-Saft url-change challenge solvable
 /* Challenges: GET list of challenges allowed. Everything else forbidden independent of authorization (hence the random secret) */
 app.post('/api/Challenges', insecurity.denyAll())
