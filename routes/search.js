@@ -6,7 +6,10 @@ module.exports = function searchProducts () {
   return ({ query }, res, next) => {
     let criteria = query.q === 'undefined' ? '' : query.q || ''
     criteria = (criteria.length <= 200) ? criteria : criteria.substring(0, 200)
-    models.sequelize.query('SELECT * FROM Products WHERE ((name LIKE \'%' + criteria + '%\' OR description LIKE \'%' + criteria + '%\') AND deletedAt IS NULL) ORDER BY name')
+    const escapedCriteria = '%' + escapeLikeCriteria(criteria) + '%'
+    models.sequelize.query('SELECT * FROM Products WHERE ((name LIKE ? ESCAPE \'\\\' OR description LIKE ? ESCAPE \'\\\') AND deletedAt IS NULL) ORDER BY name', {
+      replacements: [escapedCriteria, escapedCriteria]
+    })
       .then(([products, query]) => {
         if (utils.notSolved(challenges.unionSqlInjectionChallenge)) {
           const dataString = JSON.stringify(products)
@@ -30,5 +33,9 @@ module.exports = function searchProducts () {
       }).catch(error => {
         next(error)
       })
+  }
+
+  function escapeLikeCriteria (criteria) {
+    return criteria.replace(/[\\%_]/g, match => '\\' + match)
   }
 }

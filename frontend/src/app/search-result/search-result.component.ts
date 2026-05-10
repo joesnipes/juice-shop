@@ -7,7 +7,7 @@ import { MatPaginator } from '@angular/material/paginator'
 import { Subscription } from 'rxjs'
 import { MatTableDataSource } from '@angular/material/table'
 import { MatDialog } from '@angular/material/dialog'
-import { DomSanitizer } from '@angular/platform-browser'
+import { DomSanitizer, SecurityContext } from '@angular/platform-browser'
 import { TranslateService } from '@ngx-translate/core'
 import { SocketIoService } from '../Services/socket-io.service'
 
@@ -123,7 +123,7 @@ export class SearchResultComponent implements AfterViewInit,OnDestroy {
 
   trustProductDescription (tableData: any[]) {
     for (let i = 0; i < tableData.length; i++) {
-      tableData[i].description = this.sanitizer.bypassSecurityTrustHtml(tableData[i].description)
+      tableData[i].description = this.sanitizer.sanitize(SecurityContext.HTML, tableData[i].description) || ''
     }
   }
 

@@ -1,6 +1,5 @@
 const fs = require('fs')
 const models = require('../models/index')
-const utils = require('../lib/utils')
 const insecurity = require('../lib/insecurity')
 const jade = require('jade')
 const config = require('config')
@@ -15,17 +14,7 @@ module.exports = function getUserProfile () {
         models.User.findByPk(loggedInUser.data.id).then(user => {
           let jadeTemplate = buf.toString()
           let username = user.dataValues.username
-          if (username.match(/#\{(.*)\}/) !== null && !utils.disableOnContainerEnv()) {
-            req.app.locals.abused_ssti_bug = true
-            const code = username.substring(2, username.length - 1)
-            try {
-              eval(code) // eslint-disable-line no-eval
-            } catch (err) {
-              username = '\\' + username
-            }
-          } else {
-            username = '\\' + username
-          }
+          username = '\\' + username
           const theme = themes[config.get('application.theme')]
           jadeTemplate = jadeTemplate.replace(/_username_/g, username)
           jadeTemplate = jadeTemplate.replace(/_emailHash_/g, insecurity.hash(user.dataValues.email))
