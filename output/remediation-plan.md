@@ -7,6 +7,11 @@ SARIF/GitHub upload link status: unavailable. The validated findings report says
 - SCA: `security-fixes/sca-20260510-000000`
 - SAST: `security-fixes/sast-20260510-000000`
 
+## Pull requests
+
+- SCA: https://github.com/joesnipes/juice-shop/pull/6
+- SAST: https://github.com/joesnipes/juice-shop/pull/7
+
 ## Fixed
 
 - DEP-003 (MEDIUM, CWE-79, A03): upgraded `sanitize-html` from `1.4.2` to `^2.17.0`. Validation: `npm ls sanitize-html --depth=0` passed after install; full `npm test` failed because `ng` was not found.
