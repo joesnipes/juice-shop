@@ -5,6 +5,7 @@
 
 import fs from 'node:fs'
 import crypto from 'node:crypto'
+import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
 import expressJwt from 'express-jwt'
@@ -133,11 +134,25 @@ export const redirectAllowlist = new Set([
 ])
 
 export const isRedirectAllowed = (url: string) => {
-  let allowed = false
-  for (const allowedUrl of redirectAllowlist) {
-    allowed = allowed || url.includes(allowedUrl) // vuln-code-snippet vuln-line redirectChallenge
+  try {
+    const target = new URL(url)
+    if (target.username !== '' || target.password !== '') {
+      return false
+    }
+    for (const allowedUrl of redirectAllowlist) {
+      const allowedTarget = new URL(allowedUrl)
+      if (target.protocol === allowedTarget.protocol &&
+        target.hostname === allowedTarget.hostname &&
+        target.port === allowedTarget.port &&
+        target.pathname === allowedTarget.pathname &&
+        target.search === allowedTarget.search) { // vuln-code-snippet vuln-line redirectChallenge
+        return true
+      }
+    }
+  } catch {
+    return false
   }
-  return allowed
+  return false
 }
 // vuln-code-snippet end redirectCryptoCurrencyChallenge redirectChallenge
 
@@ -192,10 +207,16 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          res.cookie('token', token, jwtCookieOptions())
         }
       }
     })
   }
   next()
 }
+
+export const jwtCookieOptions = () => ({
+  httpOnly: true,
+  sameSite: 'strict' as const,
+  secure: process.env.NODE_ENV === 'production' || config.get<string>('server.baseUrl').startsWith('https://')
+})
