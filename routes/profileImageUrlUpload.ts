@@ -4,6 +4,8 @@
  */
 
 import fs from 'node:fs'
+import dns from 'node:dns/promises'
+import net from 'node:net'
 import { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
@@ -13,6 +15,34 @@ import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 import logger from '../lib/logger'
 
+function isPrivateIp (address: string) {
+  if (net.isIPv4(address) === 0) {
+    return address === '::1' || address.toLowerCase().startsWith('fc') || address.toLowerCase().startsWith('fd') || address.toLowerCase().startsWith('fe80:')
+  }
+
+  const octets = address.split('.').map(Number)
+  return octets[0] === 10 ||
+    octets[0] === 127 ||
+    (octets[0] === 169 && octets[1] === 254) ||
+    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+    (octets[0] === 192 && octets[1] === 168)
+}
+
+async function validateFetchableImageUrl (url: string) {
+  const parsedUrl = new URL(url)
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    throw new Error('url protocol is not allowed')
+  }
+  if (parsedUrl.port && !['80', '443'].includes(parsedUrl.port)) {
+    throw new Error('url port is not allowed')
+  }
+
+  const addresses = await dns.lookup(parsedUrl.hostname, { all: true })
+  if (addresses.some(({ address }) => isPrivateIp(address))) {
+    throw new Error('url resolves to a private or local address')
+  }
+}
+
 export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
@@ -21,6 +51,7 @@ export function profileImageUrlUpload () {
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
         try {
+          await validateFetchableImageUrl(url)
           const response = await fetch(url)
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')

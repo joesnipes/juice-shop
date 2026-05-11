@@ -3,13 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 import express, { type NextFunction, type Request, type Response } from 'express'
-import path from 'node:path'
 
 import { SecurityQuestionModel } from '../models/securityQuestion'
 import { PrivacyRequestModel } from '../models/privacyRequests'
 import { SecurityAnswerModel } from '../models/securityAnswer'
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 
@@ -50,6 +47,13 @@ interface DataErasureRequestParams {
   securityAnswer: string
 }
 
+function dataErasureRenderParams (body: DataErasureRequestParams) {
+  return {
+    email: body.email,
+    securityAnswer: body.securityAnswer
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-misused-promises
 router.post('/', async (req: Request<Record<string, unknown>, Record<string, unknown>, DataErasureRequestParams>, res: Response, next: NextFunction): Promise<void> => {
   const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
@@ -66,27 +70,16 @@ router.post('/', async (req: Request<Record<string, unknown>, Record<string, unk
 
     res.clearCookie('token')
     if (req.body.layout) {
-      const filePath: string = path.resolve(req.body.layout).toLowerCase()
-      const isForbiddenFile: boolean = (filePath.includes('ftp') || filePath.includes('ctf.key') || filePath.includes('encryptionkeys'))
-      if (!isForbiddenFile) {
-        res.render('dataErasureResult', {
-          ...req.body
-        }, (error, html) => {
-          if (!html || error) {
-            next(new Error(error.message))
-          } else {
-            const sendlfrResponse: string = html.slice(0, 100) + '......'
-            res.send(sendlfrResponse)
-            challengeUtils.solveIf(challenges.lfrChallenge, () => { return true })
-          }
-        })
-      } else {
-        next(new Error('File access not allowed'))
-      }
-    } else {
-      res.render('dataErasureResult', {
-        ...req.body
+      res.render('dataErasureResult', dataErasureRenderParams(req.body), (error, html) => {
+        if (!html || error) {
+          next(new Error(error?.message ?? 'Unable to render data erasure result'))
+        } else {
+          const sendlfrResponse: string = html.slice(0, 100) + '......'
+          res.send(sendlfrResponse)
+        }
       })
+    } else {
+      res.render('dataErasureResult', dataErasureRenderParams(req.body))
     }
   } catch (error) {
     next(error)
