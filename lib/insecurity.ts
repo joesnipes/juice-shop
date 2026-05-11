@@ -133,11 +133,21 @@ export const redirectAllowlist = new Set([
 ])
 
 export const isRedirectAllowed = (url: string) => {
-  let allowed = false
-  for (const allowedUrl of redirectAllowlist) {
-    allowed = allowed || url.includes(allowedUrl) // vuln-code-snippet vuln-line redirectChallenge
+  try {
+    const parsedUrl = new URL(url)
+    if (parsedUrl.username !== '' || parsedUrl.password !== '') {
+      return false
+    }
+    for (const allowedUrl of redirectAllowlist) {
+      const parsedAllowedUrl = new URL(allowedUrl)
+      if (parsedUrl.protocol === parsedAllowedUrl.protocol && parsedUrl.host === parsedAllowedUrl.host && parsedUrl.pathname === parsedAllowedUrl.pathname) { // vuln-code-snippet vuln-line redirectChallenge
+        return true
+      }
+    }
+  } catch {
+    return false
   }
-  return allowed
+  return false
 }
 // vuln-code-snippet end redirectCryptoCurrencyChallenge redirectChallenge
 
@@ -192,7 +202,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          res.cookie('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' })
         }
       }
     })

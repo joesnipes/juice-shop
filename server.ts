@@ -82,7 +82,6 @@ import { retrieveBasket } from './routes/basket'
 import { searchProducts } from './routes/search'
 import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
-import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
@@ -90,7 +89,6 @@ import { getLanguageList } from './routes/languages'
 import { getUserProfile } from './routes/userProfile'
 import { serveAngularClient } from './routes/angular'
 import { resetPassword } from './routes/resetPassword'
-import { serveLogFiles } from './routes/logfileServer'
 import { servePublicFiles } from './routes/fileServer'
 import { addMemory, getMemories } from './routes/memory'
 import { changePassword } from './routes/changePassword'
@@ -177,9 +175,16 @@ restoreOverwrittenFilesWithOriginals().then(() => {
   /* Compression for all requests */
   app.use(compression())
 
-  /* Bludgeon solution for possible CORS problems: Allow everything! */
-  app.options('*', cors())
-  app.use(cors())
+  const allowedCorsOrigins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(origin => origin !== '')
+  const corsOptions = {
+    origin: allowedCorsOrigins.length > 0 ? allowedCorsOrigins : false,
+    credentials: true
+  }
+  app.options('*', cors(corsOptions))
+  app.use(cors(corsOptions))
 
   /* Security middleware */
   app.use(helmet.noSniff())
@@ -273,14 +278,10 @@ restoreOverwrittenFilesWithOriginals().then(() => {
   app.use('/.well-known', serveIndexMiddleware, serveIndex('.well-known', { icons: true, view: 'details' }))
   app.use('/.well-known', express.static('.well-known'))
 
-  /* /encryptionkeys directory browsing */
-  app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
-  app.use('/encryptionkeys/:file', serveKeyFiles())
+  app.use('/encryptionkeys', (req: Request, res: Response) => res.sendStatus(404))
 
   /* /logs directory browsing */ // vuln-code-snippet neutral-line accessLogDisclosureChallenge
-  app.use('/support/logs', serveIndexMiddleware, serveIndex('logs', { icons: true, view: 'details' })) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
-  app.use('/support/logs', verify.accessControlChallenges()) // vuln-code-snippet hide-line
-  app.use('/support/logs/:file', serveLogFiles()) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
+  app.use('/support/logs', (req: Request, res: Response) => res.sendStatus(404)) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
 
   /* Swagger documentation for B2B v2 endpoints */
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument))
@@ -479,6 +480,15 @@ restoreOverwrittenFilesWithOriginals().then(() => {
   /* Generated API endpoints */
   finale.initialize({ app, sequelize })
 
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    req.body = {
+      email: req.body?.email,
+      password: req.body?.password,
+      username: req.body?.username
+    }
+    next()
+  })
+
   const autoModels = [
     { name: 'User', exclude: ['password', 'totpSecret'], model: UserModel },
     { name: 'Product', exclude: [], model: ProductModel },
@@ -673,7 +683,10 @@ restoreOverwrittenFilesWithOriginals().then(() => {
 
   /* Error Handling */
   app.use(verify.errorHandlingChallenge())
-  app.use(errorhandler())
+  app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+    logger.warn(`Request failed: ${err.message}`)
+    res.status(res.statusCode >= 400 ? res.statusCode : 500).json({ error: 'Internal server error' })
+  })
 }).catch((err) => {
   console.error(err)
 })
@@ -715,7 +728,14 @@ logger.info(`Entity models ${colors.bold(Object.keys(sequelize.models).length.to
 /* Serve metrics */
 let metricsUpdateLoop: any
 const Metrics = metrics.observeMetrics() // vuln-code-snippet neutral-line exposedMetricsChallenge
-app.get('/metrics', metrics.serveMetrics()) // vuln-code-snippet vuln-line exposedMetricsChallenge
+app.get('/metrics', (req: Request, res: Response, next: NextFunction) => {
+  const metricsToken = process.env.METRICS_TOKEN
+  if (metricsToken === undefined || req.get('authorization') !== `Bearer ${metricsToken}`) {
+    res.sendStatus(404)
+    return
+  }
+  metrics.serveMetrics()(req, res, next)
+}) // vuln-code-snippet vuln-line exposedMetricsChallenge
 errorhandler.title = `${config.get<string>('application.name')} (Express ${utils.version('express')})`
 
 export async function start (readyCallback?: () => void) {

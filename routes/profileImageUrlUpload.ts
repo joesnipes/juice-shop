@@ -4,6 +4,8 @@
  */
 
 import fs from 'node:fs'
+import dns from 'node:dns/promises'
+import net from 'node:net'
 import { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
@@ -21,7 +23,8 @@ export function profileImageUrlUpload () {
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
         try {
-          const response = await fetch(url)
+          await validateProfileImageUrl(url)
+          const response = await fetch(url, { redirect: 'error' })
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')
           }
@@ -48,4 +51,25 @@ export function profileImageUrlUpload () {
     res.location(process.env.BASE_PATH + '/profile')
     res.redirect(process.env.BASE_PATH + '/profile')
   }
+}
+
+async function validateProfileImageUrl (url: string) {
+  const parsedUrl = new URL(url)
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    throw new Error('Only HTTP(S) image URLs are allowed')
+  }
+  const { address } = await dns.lookup(parsedUrl.hostname)
+  if (isPrivateAddress(address)) {
+    throw new Error('Private network image URLs are not allowed')
+  }
+}
+
+function isPrivateAddress (address: string) {
+  if (net.isIP(address) === 0) {
+    return true
+  }
+  if (address === '127.0.0.1' || address === '::1' || address === '0.0.0.0') {
+    return true
+  }
+  return /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|169\.254\.)/.test(address) || /^f[cd][0-9a-f]{2}:/i.test(address)
 }
