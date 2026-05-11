@@ -2,6 +2,7 @@
 
 - SCA branch: not created (no confirmed SCA/dependency findings in `output/findings.json`).
 - SAST branch: `security-fixes/sast-20260510-213121`
+- SAST pull request: https://github.com/joesnipes/juice-shop/pull/12
 - Fixed SAST findings: AUDIT-001, AUDIT-002, AUDIT-003, AUDIT-004, AUDIT-005, AUDIT-006, AUDIT-007, AUDIT-008, AUDIT-010, AUDIT-011, AUDIT-012
 - Deferred SAST findings: AUDIT-009, AUDIT-013
 - Validation: `npm run build:server` failed because `tsc` was not found; `npm run lint` failed because `eslint` was not found.
