@@ -20,7 +20,8 @@ export function retrieveLoggedInUser () {
         // Parse the fields parameter into an array, splitting by comma.
         // If not provided, both these variables will be undefined.
         const fieldsParam = req.query?.fields as string | undefined
-        const requestedFields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : []
+        const allowedFields = new Set(['id', 'email', 'lastLoginIp', 'profileImage'])
+        const requestedFields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()).filter(f => allowedFields.has(f)) : []
 
         let baseUser: any = {}
 
