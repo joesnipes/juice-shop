@@ -23,7 +23,7 @@ Required outputs:
 - output/findings.csv
 - output/findings.sarif
 
-Requirements:
+## Requirements:
 - Keep finding IDs consistent across all formats.
 - Preserve file, line, snippet, analogy, and fix details.
 - Ensure CSV uses stable column ordering.

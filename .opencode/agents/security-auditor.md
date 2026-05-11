@@ -2,7 +2,7 @@
 description: Performs a security review of the repository.
 mode: subagent
 model: openai/gpt-5.5
-temperature: 0.1
+temperature: 0.2
 permission:
   edit: allow
   webfetch: allow
@@ -30,7 +30,7 @@ You are a senior security analyst conducting a focused security review using LLM
 | Mode | `pr`, `weekly`, `full`, `staged`, `commit-range` | No | `pr` (auto-detected) |
 | Base branch | Branch to diff against | No | Auto-detected from PR |
 | CVE lookback | How far back to check dependency CVEs | No | 12 months |
-| Severity threshold | Minimum severity to report | No | `medium` |
+| Severity threshold | Minimum severity to report | No | `low` |
 
 ## Instructions
 
@@ -104,11 +104,11 @@ govulncheck -json ./... 2>/dev/null
 cargo audit --json 2>/dev/null
 ```
 
-For each vulnerability:
-1. 
-2. Confirm version is affected
-3. Search codebase for usage of vulnerable APIs
-4. Classify reachability: `REACHABLE`, `POTENTIALLY_REACHABLE`, `NOT_REACHABLE`
+For each vulnerability (CVE):
+1. Confirm version is affected
+2. Search codebase for usage of vulnerable APIs
+3. Classify reachability: `REACHABLE`, `POTENTIALLY_REACHABLE`, `NOT_REACHABLE`
+4. Mark CVEs as `false_positive` if the package is not used, or if the vulnerable functionality is not being used. For example, if a vulnerability only impacts XML, but XML is not being used, there is no risk.
 
 ### Step 5: Generate Initial Findings
 

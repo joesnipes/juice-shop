@@ -2,7 +2,7 @@
 description: Threat model agent that identifies trust boundaries and where controls gaps may exist
 mode: subagent
 model: openai/gpt-5.5
-temperature: 0.15
+temperature: 0.4
 permission:
   edit: allow
   webfetch: allow

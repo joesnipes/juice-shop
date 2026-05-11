@@ -2,7 +2,7 @@
 description: Validates confirmed findings via safe local Docker sandbox checks
 mode: subagent
 model: opencode/minimax-m2.5-free
-temperature: 0.1
+temperature: 0.0
 permission:
   edit: allow
   webfetch: deny

@@ -3,7 +3,7 @@ description: Creates remediation branches and fixes confirmed SAST/SCA vulnerabi
 mode: subagent
 hidden: true
 model: openai/gpt-5.5
-temperature: 0.1
+temperature: 0.2
 permission:
   edit: allow
   webfetch: allow
@@ -40,7 +40,7 @@ Do not mix SCA and SAST fixes in the same branch unless explicitly instructed by
 - Ensure this subagent is managed and executed by `vuln-orchestrator`
 - Ensure that vuln-reporter executes successfully prior to running this sub-agent
 
-## Required inputs
+## Inputs
 
 Use these artifacts when present:
 
@@ -77,6 +77,7 @@ Be conscientious and conservative:
 - Do not introduce secrets, hardcoded credentials, or insecure bypasses.
 - Do not suppress scanner results without fixing root cause unless the finding is proven false-positive and documented.
 - Maintain proper coding guidelines through google styleguides, pep8, etc.
+- Don't be afraid to make changes you feel will remediate a vulnerability. The changes will be in PRs that require a developers review.
 
 ## Required remediation workflow
 
