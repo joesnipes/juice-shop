@@ -1,8 +1,8 @@
 # Remediation Plan
 
 - Branch type: SAST
-- Branch: 
-- Pull request: https://github.com/joesnipes/juice-shop/pull/17`security-fixes/sast-20260511-183242`
+- Branch: `security-fixes/sast-20260511-183242`
+- Pull request: https://github.com/joesnipes/juice-shop/pull/17
 - Fixed findings: JS-AUDIT-001, JS-AUDIT-002, JS-AUDIT-004, JS-AUDIT-005, JS-AUDIT-006, JS-AUDIT-007, JS-AUDIT-008, JS-AUDIT-010, JS-AUDIT-011, JS-AUDIT-012
 - Developer decision required: JS-AUDIT-003, JS-AUDIT-009
 - SCA findings fixed: none; no separate confirmed dependency-only finding was present in the supplied reports.
