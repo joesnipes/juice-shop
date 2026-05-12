@@ -1,0 +1,2682 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Barrys Special AI Vuln Audit",
+          "version": "1.0.0",
+          "informationUri": "https://github.com/joesnipes/juice-shop",
+          "rules": [
+            {
+              "id": "JS-AUDIT-001",
+              "name": "SQL Injection / Authentication Bypass in login endpoint",
+              "shortDescription": {
+                "text": "SQL Injection / Authentication Bypass in login endpoint"
+              },
+              "fullDescription": {
+                "text": "POST /rest/user/login passes req.body.email directly into a raw template literal SQL query. Sending email='\\' OR 1=1--' is a textbook tautology bypass that returns the first row (the admin) and the route then issues a JWT for that user via security.authorize(). No parameterization, no escaping, no allow-list. The result is full admin takeover from an entirely unauthenticated request."
+              },
+              "help": {
+                "text": "Recommended fix: Use parameterized queries via Sequelize replacements/bind (e.g. UserModel.findOne({ where: { email, password: hashedPw } })) and migrate password handling to bcrypt/argon2. Never interpolate untrusted strings into raw SQL.",
+                "markdown": "## SQL Injection / Authentication Bypass in login endpoint\n\n**CWE:** CWE-89\n\n**OWASP:** A03:2021-Injection\n\n### Exploitation\n\nPOST /rest/user/login passes req.body.email directly into a raw template literal SQL query. Sending email='\\' OR 1=1--' is a textbook tautology bypass that returns the first row (the admin) and the route then issues a JWT for that user via security.authorize(). No parameterization, no escaping, no allow-list. The result is full admin takeover from an entirely unauthenticated request.\n\n### Recommended Fix\n\nUse parameterized queries via Sequelize replacements/bind (e.g. UserModel.findOne({ where: { email, password: hashedPw } })) and migrate password handling to bcrypt/argon2. Never interpolate untrusted strings into raw SQL."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "9.8",
+                "tags": [
+                  "sql_injection",
+                  "auth_bypass",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-89"
+                ],
+                "owasp": [
+                  "A03:2021-Injection"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-002",
+              "name": "UNION SQL Injection in unauthenticated product search",
+              "shortDescription": {
+                "text": "UNION SQL Injection in unauthenticated product search"
+              },
+              "fullDescription": {
+                "text": "GET /rest/products/search?q= is reachable without authentication and concatenates the query parameter directly into raw SQL. Because the database is SQLite the attacker can append a UNION SELECT statement to exfiltrate Users (emails, MD5 password hashes) and sqlite_master (table schemas). The route code itself solves a 'unionSqlInjectionChallenge' by detecting if user rows leak via this primitive, which proves it is exploitable end-to-end."
+              },
+              "help": {
+                "text": "Recommended fix: Use Sequelize replacements/bind (`:criteria`) or ProductModel.findAll({ where: { [Op.or]: [{ name: { [Op.like]: q } }, ...] } }). The 200-byte truncation does not prevent injection.",
+                "markdown": "## UNION SQL Injection in unauthenticated product search\n\n**CWE:** CWE-89\n\n**OWASP:** A03:2021-Injection\n\n### Exploitation\n\nGET /rest/products/search?q= is reachable without authentication and concatenates the query parameter directly into raw SQL. Because the database is SQLite the attacker can append a UNION SELECT statement to exfiltrate Users (emails, MD5 password hashes) and sqlite_master (table schemas). The route code itself solves a 'unionSqlInjectionChallenge' by detecting if user rows leak via this primitive, which proves it is exploitable end-to-end.\n\n### Recommended Fix\n\nUse Sequelize replacements/bind (`:criteria`) or ProductModel.findAll({ where: { [Op.or]: [{ name: { [Op.like]: q } }, ...] } }). The 200-byte truncation does not prevent injection."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "9.1",
+                "tags": [
+                  "sql_injection",
+                  "info_disclosure",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-89"
+                ],
+                "owasp": [
+                  "A03:2021-Injection"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-003",
+              "name": "Hard-coded RSA private key used to sign all JWTs",
+              "shortDescription": {
+                "text": "Hard-coded RSA private key used to sign all JWTs"
+              },
+              "fullDescription": {
+                "text": "The full 1024-bit RSA private key used by security.authorize() to sign all session JWTs (RS256) is checked into source. Anyone who reads the public GitHub repo can mint a JWT with `data.role=\"admin\"` for any user id and bypass every authentication and authorization check in the application. The matching `encryptionkeys/jwt.pub` is the corresponding public key used for verification. This is the single most catastrophic finding."
+              },
+              "help": {
+                "text": "Recommended fix: Generate a fresh RSA-2048 (or Ed25519) key pair at deploy time, store the private key in a secret manager (KMS/Vault/SSM), rotate immediately, and revoke any tokens minted under the leaked key.",
+                "markdown": "## Hard-coded RSA private key used to sign all JWTs\n\n**CWE:** CWE-798\n\n**OWASP:** A02:2021-Cryptographic Failures\n\n### Exploitation\n\nThe full 1024-bit RSA private key used by security.authorize() to sign all session JWTs (RS256) is checked into source. Anyone who reads the public GitHub repo can mint a JWT with `data.role=\"admin\"` for any user id and bypass every authentication and authorization check in the application. The matching `encryptionkeys/jwt.pub` is the corresponding public key used for verification. This is the single most catastrophic finding.\n\n### Recommended Fix\n\nGenerate a fresh RSA-2048 (or Ed25519) key pair at deploy time, store the private key in a secret manager (KMS/Vault/SSM), rotate immediately, and revoke any tokens minted under the leaked key."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "9.8",
+                "tags": [
+                  "hardcoded_secret",
+                  "jwt_forgery",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-798"
+                ],
+                "owasp": [
+                  "A02:2021-Cryptographic Failures"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-004",
+              "name": "MD5 used as password hash with no salt",
+              "shortDescription": {
+                "text": "MD5 used as password hash with no salt"
+              },
+              "fullDescription": {
+                "text": "User passwords are stored as bare MD5 hashes (no salt, no key-stretching). MD5 is broken for password hashing — modern GPUs hash hundreds of GH/s. Combined with the UNION SQLi (JS-AUDIT-002), every password becomes trivially crackable by rainbow tables / hashcat. Even without SQLi, the hashing function is used in 'authorize'-equivalent flows server-side."
+              },
+              "help": {
+                "text": "Recommended fix: Switch to bcrypt (cost >= 12), argon2id, or scrypt with per-user salt. Rehash on next login.",
+                "markdown": "## MD5 used as password hash with no salt\n\n**CWE:** CWE-916\n\n**OWASP:** A02:2021-Cryptographic Failures\n\n### Exploitation\n\nUser passwords are stored as bare MD5 hashes (no salt, no key-stretching). MD5 is broken for password hashing — modern GPUs hash hundreds of GH/s. Combined with the UNION SQLi (JS-AUDIT-002), every password becomes trivially crackable by rainbow tables / hashcat. Even without SQLi, the hashing function is used in 'authorize'-equivalent flows server-side.\n\n### Recommended Fix\n\nSwitch to bcrypt (cost >= 12), argon2id, or scrypt with per-user salt. Rehash on next login."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "8.2",
+                "tags": [
+                  "weak_crypto",
+                  "password_hash",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-916"
+                ],
+                "owasp": [
+                  "A02:2021-Cryptographic Failures"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-005",
+              "name": "Hard-coded HMAC secret used for security-answer verification",
+              "shortDescription": {
+                "text": "Hard-coded HMAC secret used for security-answer verification"
+              },
+              "fullDescription": {
+                "text": "Security-answer 'hashes' in SecurityAnswers table are HMAC-SHA256 with a static, public secret. With the secret in the repo any attacker who reads the SecurityAnswers row can precompute HMACs offline (or just submit known answers) to reset a victim's password via /rest/user/reset-password (routes/resetPassword.ts:41 compares `security.hmac(answer) === data.answer`). It also disables HMAC's collision resistance assumption."
+              },
+              "help": {
+                "text": "Recommended fix: Move secret to env/secret manager; rotate. Long-term, do not rely on security questions; require a verified-email token flow instead.",
+                "markdown": "## Hard-coded HMAC secret used for security-answer verification\n\n**CWE:** CWE-798\n\n**OWASP:** A02:2021-Cryptographic Failures\n\n### Exploitation\n\nSecurity-answer 'hashes' in SecurityAnswers table are HMAC-SHA256 with a static, public secret. With the secret in the repo any attacker who reads the SecurityAnswers row can precompute HMACs offline (or just submit known answers) to reset a victim's password via /rest/user/reset-password (routes/resetPassword.ts:41 compares `security.hmac(answer) === data.answer`). It also disables HMAC's collision resistance assumption.\n\n### Recommended Fix\n\nMove secret to env/secret manager; rotate. Long-term, do not rely on security questions; require a verified-email token flow instead."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "8.1",
+                "tags": [
+                  "hardcoded_secret",
+                  "weak_crypto",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-798"
+                ],
+                "owasp": [
+                  "A02:2021-Cryptographic Failures"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-006",
+              "name": "express-jwt 0.1.3 + jsonwebtoken 0.4.0 — alg:none / verification bypass",
+              "shortDescription": {
+                "text": "express-jwt 0.1.3 + jsonwebtoken 0.4.0 — alg:none / verification bypass"
+              },
+              "fullDescription": {
+                "text": "package.json pins express-jwt@0.1.3 and jsonwebtoken@0.4.0 — both are wildly out of date. express-jwt prior to 5.3.3 (GHSA-6cwn-77pq-3fpx) does not enforce `algorithms`, so an attacker can craft a token with header `alg:none` (no signature) and bypass auth on every middleware-protected route. jsonwebtoken<=4.2.1 has the original verification-bypass CVE. Combined with the hardcoded public key being downloadable from /encryptionkeys/jwt.pub, the attacker can also forge HS256 tokens signed with the public key as a symmetric secret."
+              },
+              "help": {
+                "text": "Recommended fix: Upgrade express-jwt to >=8.x (passing `algorithms: ['RS256']`) and jsonwebtoken to >=9.x. Pin algorithm explicitly.",
+                "markdown": "## express-jwt 0.1.3 + jsonwebtoken 0.4.0 — alg:none / verification bypass\n\n**CWE:** CWE-327\n\n**OWASP:** A06:2021-Vulnerable and Outdated Components\n\n### Exploitation\n\npackage.json pins express-jwt@0.1.3 and jsonwebtoken@0.4.0 — both are wildly out of date. express-jwt prior to 5.3.3 (GHSA-6cwn-77pq-3fpx) does not enforce `algorithms`, so an attacker can craft a token with header `alg:none` (no signature) and bypass auth on every middleware-protected route. jsonwebtoken<=4.2.1 has the original verification-bypass CVE. Combined with the hardcoded public key being downloadable from /encryptionkeys/jwt.pub, the attacker can also forge HS256 tokens signed with the public key as a symmetric secret.\n\n### Recommended Fix\n\nUpgrade express-jwt to >=8.x (passing `algorithms: ['RS256']`) and jsonwebtoken to >=9.x. Pin algorithm explicitly."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "9.1",
+                "tags": [
+                  "vulnerable_dependency",
+                  "auth_bypass",
+                  "jwt_alg_confusion",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-327"
+                ],
+                "owasp": [
+                  "A06:2021-Vulnerable and Outdated Components"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-007",
+              "name": "denyAll() relies on Math.random() as JWT verification secret",
+              "shortDescription": {
+                "text": "denyAll() relies on Math.random() as JWT verification secret"
+              },
+              "fullDescription": {
+                "text": "`denyAll` is wired into critical routes (PUT/DELETE /api/Users/:id, DELETE /api/Products/:id, /api/Challenges, /api/Hints, /api/SecurityQuestions, /api/Recycles/:id, etc.). Because of the express-jwt 0.1.3 alg:none bug above, a token with `alg:none` would skip secret validation entirely. Even without that, Math.random() is non-cryptographic and predictable; an attacker who can guess one secret can mint tokens. The bigger issue is that 'deny all' is implemented as 'verify with a random secret' instead of a hard 403, which is fundamentally wrong."
+              },
+              "help": {
+                "text": "Recommended fix: Replace with an explicit middleware that always returns 403: `(req,res)=>res.status(403).end()`. Do not rely on the JWT layer at all.",
+                "markdown": "## denyAll() relies on Math.random() as JWT verification secret\n\n**CWE:** CWE-330\n\n**OWASP:** A07:2021-Identification and Authentication Failures\n\n### Exploitation\n\n`denyAll` is wired into critical routes (PUT/DELETE /api/Users/:id, DELETE /api/Products/:id, /api/Challenges, /api/Hints, /api/SecurityQuestions, /api/Recycles/:id, etc.). Because of the express-jwt 0.1.3 alg:none bug above, a token with `alg:none` would skip secret validation entirely. Even without that, Math.random() is non-cryptographic and predictable; an attacker who can guess one secret can mint tokens. The bigger issue is that 'deny all' is implemented as 'verify with a random secret' instead of a hard 403, which is fundamentally wrong.\n\n### Recommended Fix\n\nReplace with an explicit middleware that always returns 403: `(req,res)=>res.status(403).end()`. Do not rely on the JWT layer at all."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.5",
+                "tags": [
+                  "insecure_randomness",
+                  "auth_bypass",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-330"
+                ],
+                "owasp": [
+                  "A07:2021-Identification and Authentication Failures"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-008",
+              "name": "Open-redirect allowlist uses substring match (url.includes)",
+              "shortDescription": {
+                "text": "Open-redirect allowlist uses substring match (url.includes)"
+              },
+              "fullDescription": {
+                "text": "isRedirectAllowed() returns true if the *attacker-supplied URL* contains an allowlisted string anywhere. Therefore `/redirect?to=https://evil.example.com/?x=https://github.com/juice-shop/juice-shop` passes the check and the server returns a 302 to evil.example.com. Used for phishing / credential harvesting / token exfil. CodeQL (alert 3) confirms."
+              },
+              "help": {
+                "text": "Recommended fix: Parse with `new URL(toUrl)` and compare `url.origin` against an allowlist of full origins; or use signed redirect tokens.",
+                "markdown": "## Open-redirect allowlist uses substring match (url.includes)\n\n**CWE:** CWE-601\n\n**OWASP:** A01:2021-Broken Access Control\n\n### Exploitation\n\nisRedirectAllowed() returns true if the *attacker-supplied URL* contains an allowlisted string anywhere. Therefore `/redirect?to=https://evil.example.com/?x=https://github.com/juice-shop/juice-shop` passes the check and the server returns a 302 to evil.example.com. Used for phishing / credential harvesting / token exfil. CodeQL (alert 3) confirms.\n\n### Recommended Fix\n\nParse with `new URL(toUrl)` and compare `url.origin` against an allowlist of full origins; or use signed redirect tokens."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.4",
+                "tags": [
+                  "open_redirect",
+                  "tier1",
+                  "tier3"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-601"
+                ],
+                "owasp": [
+                  "A01:2021-Broken Access Control"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-009",
+              "name": "Pug SSTI + eval() on username + user-controlled CSP -> RCE/XSS",
+              "shortDescription": {
+                "text": "Pug SSTI + eval() on username + user-controlled CSP -> RCE/XSS"
+              },
+              "fullDescription": {
+                "text": "The route reads the logged-in user's own username from the DB. If it matches `#{...}` the inner expression is passed to JavaScript `eval()` *server-side*. Any authenticated user can therefore execute arbitrary Node.js code in the server process by updating their own username via PATCH /api/Users/:id or POST /profile. Additionally, the `profileImage` field is interpolated unsanitised into a Content-Security-Policy header (line 88), letting the same user weaken/override CSP and achieve persistent XSS. This is full server-side RCE."
+              },
+              "help": {
+                "text": "Recommended fix: Never eval user data. Render usernames with HTML-escape only (Handlebars/Angular auto-escape). Build CSP from a static template, never interpolate user input.",
+                "markdown": "## Pug SSTI + eval() on username + user-controlled CSP -> RCE/XSS\n\n**CWE:** CWE-94\n\n**OWASP:** A03:2021-Injection\n\n### Exploitation\n\nThe route reads the logged-in user's own username from the DB. If it matches `#{...}` the inner expression is passed to JavaScript `eval()` *server-side*. Any authenticated user can therefore execute arbitrary Node.js code in the server process by updating their own username via PATCH /api/Users/:id or POST /profile. Additionally, the `profileImage` field is interpolated unsanitised into a Content-Security-Policy header (line 88), letting the same user weaken/override CSP and achieve persistent XSS. This is full server-side RCE.\n\n### Recommended Fix\n\nNever eval user data. Render usernames with HTML-escape only (Handlebars/Angular auto-escape). Build CSP from a static template, never interpolate user input."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "9.6",
+                "tags": [
+                  "ssti",
+                  "code_injection",
+                  "xss",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-94"
+                ],
+                "owasp": [
+                  "A03:2021-Injection"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-010",
+              "name": "B2B order safeEval (notevil) used inside vm with attacker-controlled body -> RCE/DoS",
+              "shortDescription": {
+                "text": "B2B order safeEval (notevil) used inside vm with attacker-controlled body -> RCE/DoS"
+              },
+              "fullDescription": {
+                "text": "`notevil` (1.3.3) has had multiple documented sandbox escapes (e.g. accessing constructor chains via prototype lookups to reach `Function('return process')()`). It is not a security boundary. With the hardcoded RSA key (JS-AUDIT-003) an attacker can mint a B2B token, then POST {orderLinesData: \"<payload>\"} to /b2b/v2/orders and obtain RCE. Even without escape, infinite-loop / billion-laughs style payloads trigger reliable DoS (the code itself acknowledges this with rceOccupyChallenge)."
+              },
+              "help": {
+                "text": "Recommended fix: Do not evaluate user-supplied code. Accept structured JSON only and validate against a schema. If business logic genuinely requires expressions, run them in a separate sandboxed worker with strict CPU/memory budgets — preferably as data, not code.",
+                "markdown": "## B2B order safeEval (notevil) used inside vm with attacker-controlled body -> RCE/DoS\n\n**CWE:** CWE-94\n\n**OWASP:** A03:2021-Injection\n\n### Exploitation\n\n`notevil` (1.3.3) has had multiple documented sandbox escapes (e.g. accessing constructor chains via prototype lookups to reach `Function('return process')()`). It is not a security boundary. With the hardcoded RSA key (JS-AUDIT-003) an attacker can mint a B2B token, then POST {orderLinesData: \"<payload>\"} to /b2b/v2/orders and obtain RCE. Even without escape, infinite-loop / billion-laughs style payloads trigger reliable DoS (the code itself acknowledges this with rceOccupyChallenge).\n\n### Recommended Fix\n\nDo not evaluate user-supplied code. Accept structured JSON only and validate against a schema. If business logic genuinely requires expressions, run them in a separate sandboxed worker with strict CPU/memory budgets — preferably as data, not code."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "9.1",
+                "tags": [
+                  "code_injection",
+                  "dos",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-94"
+                ],
+                "owasp": [
+                  "A03:2021-Injection"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-011",
+              "name": "Zip-Slip / unbounded extraction in /file-upload (.zip handler)",
+              "shortDescription": {
+                "text": "Zip-Slip / unbounded extraction in /file-upload (.zip handler)"
+              },
+              "fullDescription": {
+                "text": "The check `absolutePath.includes(path.resolve('.'))` only ensures the resolved path *contains* the project root; it does NOT prevent traversal. An entry path like `../../../../../<projectRoot>/etc/whatever` would still satisfy the check on some layouts. Even if traversal were blocked, the stream destination uses the raw `fileName` from the zip entry (line 45) without sanitisation, so symlink overwrite of files under uploads/complaints is possible. There is also no decompressed-size limit (zip-bomb DoS)."
+              },
+              "help": {
+                "text": "Recommended fix: Resolve each entry path with path.resolve(extractRoot, fileName) then require startsWith(extractRoot + path.sep). Enforce per-entry and total decompressed-size limits. Reject symlinks and absolute paths.",
+                "markdown": "## Zip-Slip / unbounded extraction in /file-upload (.zip handler)\n\n**CWE:** CWE-22\n\n**OWASP:** A01:2021-Broken Access Control\n\n### Exploitation\n\nThe check `absolutePath.includes(path.resolve('.'))` only ensures the resolved path *contains* the project root; it does NOT prevent traversal. An entry path like `../../../../../<projectRoot>/etc/whatever` would still satisfy the check on some layouts. Even if traversal were blocked, the stream destination uses the raw `fileName` from the zip entry (line 45) without sanitisation, so symlink overwrite of files under uploads/complaints is possible. There is also no decompressed-size limit (zip-bomb DoS).\n\n### Recommended Fix\n\nResolve each entry path with path.resolve(extractRoot, fileName) then require startsWith(extractRoot + path.sep). Enforce per-entry and total decompressed-size limits. Reject symlinks and absolute paths."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "8.1",
+                "tags": [
+                  "zip_slip",
+                  "path_traversal",
+                  "dos",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-22"
+                ],
+                "owasp": [
+                  "A01:2021-Broken Access Control"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-012",
+              "name": "XXE via libxml.parseXml(data, { noent: true })",
+              "shortDescription": {
+                "text": "XXE via libxml.parseXml(data, { noent: true })"
+              },
+              "fullDescription": {
+                "text": "`noent: true` enables external entity expansion. The code itself parses the result for /etc/passwd-style content (matchesEtcPasswdFile) confirming exploitability. Used for arbitrary local file disclosure (SYSTEM \"file:///etc/passwd\") and for billion-laughs DoS — both are acknowledged in source (xxeFileDisclosureChallenge / xxeDosChallenge)."
+              },
+              "help": {
+                "text": "Recommended fix: Pass `noent: false`, disable DTD/external entities, or migrate to a JSON ingest. libxmljs2 also exposes a `replaceEntities` flag.",
+                "markdown": "## XXE via libxml.parseXml(data, { noent: true })\n\n**CWE:** CWE-611\n\n**OWASP:** A05:2021-Security Misconfiguration\n\n### Exploitation\n\n`noent: true` enables external entity expansion. The code itself parses the result for /etc/passwd-style content (matchesEtcPasswdFile) confirming exploitability. Used for arbitrary local file disclosure (SYSTEM \"file:///etc/passwd\") and for billion-laughs DoS — both are acknowledged in source (xxeFileDisclosureChallenge / xxeDosChallenge).\n\n### Recommended Fix\n\nPass `noent: false`, disable DTD/external entities, or migrate to a JSON ingest. libxmljs2 also exposes a `replaceEntities` flag."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "8.6",
+                "tags": [
+                  "xxe",
+                  "info_disclosure",
+                  "dos",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-611"
+                ],
+                "owasp": [
+                  "A05:2021-Security Misconfiguration"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-013",
+              "name": "Unsafe YAML deserialization (yaml.load) with no size limit",
+              "shortDescription": {
+                "text": "Unsafe YAML deserialization (yaml.load) with no size limit"
+              },
+              "fullDescription": {
+                "text": "js-yaml.load (vs safeLoad) historically supported custom tags that could instantiate JS objects; even modern versions allow YAML anchors causing exponential reference expansion (yaml-bomb). The route already detects yamlBombChallenge confirming DoS exploitability. The 200KB upload limit (server.ts:681) only bounds linear input — billion-laughs amplification is post-decode."
+              },
+              "help": {
+                "text": "Recommended fix: Use yaml.load with FAILSAFE_SCHEMA or yaml.safeLoad; reject anchors; cap output size; consider migrating to JSON.",
+                "markdown": "## Unsafe YAML deserialization (yaml.load) with no size limit\n\n**CWE:** CWE-502\n\n**OWASP:** A08:2021-Software and Data Integrity Failures\n\n### Exploitation\n\njs-yaml.load (vs safeLoad) historically supported custom tags that could instantiate JS objects; even modern versions allow YAML anchors causing exponential reference expansion (yaml-bomb). The route already detects yamlBombChallenge confirming DoS exploitability. The 200KB upload limit (server.ts:681) only bounds linear input — billion-laughs amplification is post-decode.\n\n### Recommended Fix\n\nUse yaml.load with FAILSAFE_SCHEMA or yaml.safeLoad; reject anchors; cap output size; consider migrating to JSON."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "6.5",
+                "tags": [
+                  "unsafe_deserialization",
+                  "dos",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-502"
+                ],
+                "owasp": [
+                  "A08:2021-Software and Data Integrity Failures"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-014",
+              "name": "Admin role mass-assignment on POST /api/Users",
+              "shortDescription": {
+                "text": "Admin role mass-assignment on POST /api/Users"
+              },
+              "fullDescription": {
+                "text": "Registration is unauthenticated and goes through finale auto-CRUD. The model permits role in {customer, deluxe, accounting, admin}, and there is no whitelist of registration-permitted attributes. Posting {email, password, role:'admin'} creates an admin account directly. server.ts:407-419 even includes `registerAdminChallenge()` to *detect* this exploitation, confirming the route is exploitable."
+              },
+              "help": {
+                "text": "Recommended fix: Whitelist fields on registration (email, password only). Hardcode role='customer' server-side. Use finale's `excludeAttributes` for write paths or wrap with a dedicated registration handler.",
+                "markdown": "## Admin role mass-assignment on POST /api/Users\n\n**CWE:** CWE-915\n\n**OWASP:** A04:2021-Insecure Design\n\n### Exploitation\n\nRegistration is unauthenticated and goes through finale auto-CRUD. The model permits role in {customer, deluxe, accounting, admin}, and there is no whitelist of registration-permitted attributes. Posting {email, password, role:'admin'} creates an admin account directly. server.ts:407-419 even includes `registerAdminChallenge()` to *detect* this exploitation, confirming the route is exploitable.\n\n### Recommended Fix\n\nWhitelist fields on registration (email, password only). Hardcode role='customer' server-side. Use finale's `excludeAttributes` for write paths or wrap with a dedicated registration handler."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "9.8",
+                "tags": [
+                  "mass_assignment",
+                  "privilege_escalation",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-915"
+                ],
+                "owasp": [
+                  "A04:2021-Insecure Design"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-015",
+              "name": "Finale auto-CRUD exposes write-access to every model",
+              "shortDescription": {
+                "text": "Finale auto-CRUD exposes write-access to every model"
+              },
+              "fullDescription": {
+                "text": "Finale exposes full CRUD on User, Product, Feedback, BasketItem, Complaint, Recycle, SecurityQuestion, SecurityAnswer, Address, PrivacyRequest, Card, Hint. Authorization is bolted on per-endpoint with a fragile mix of denyAll/isAuthorized; any missing entry (e.g. PUT /api/Products/:id is commented out at line 369) immediately becomes a privilege escalation. Customers can PATCH products, set their own prices, etc. The model itself permits role admin (see JS-AUDIT-014)."
+              },
+              "help": {
+                "text": "Recommended fix: Replace finale auto-CRUD with explicit hand-written routes and per-attribute authorization. At minimum, default-deny and explicitly enable only listed methods/fields.",
+                "markdown": "## Finale auto-CRUD exposes write-access to every model\n\n**CWE:** CWE-284\n\n**OWASP:** A01:2021-Broken Access Control\n\n### Exploitation\n\nFinale exposes full CRUD on User, Product, Feedback, BasketItem, Complaint, Recycle, SecurityQuestion, SecurityAnswer, Address, PrivacyRequest, Card, Hint. Authorization is bolted on per-endpoint with a fragile mix of denyAll/isAuthorized; any missing entry (e.g. PUT /api/Products/:id is commented out at line 369) immediately becomes a privilege escalation. Customers can PATCH products, set their own prices, etc. The model itself permits role admin (see JS-AUDIT-014).\n\n### Recommended Fix\n\nReplace finale auto-CRUD with explicit hand-written routes and per-attribute authorization. At minimum, default-deny and explicitly enable only listed methods/fields."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "8.1",
+                "tags": [
+                  "broken_access_control",
+                  "tier1"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-284"
+                ],
+                "owasp": [
+                  "A01:2021-Broken Access Control"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-016",
+              "name": "Directory listing of /ftp, /encryptionkeys, /support/logs",
+              "shortDescription": {
+                "text": "Directory listing of /ftp, /encryptionkeys, /support/logs"
+              },
+              "fullDescription": {
+                "text": "Three sensitive directories are publicly browseable: ftp/ contains incident-support.kdbx (KeePass db), package.json.bak, coupons_2013.md.bak, suspicious_errors.yml, encrypt.pyc; encryptionkeys/ exposes the JWT public key (used for forgery alongside JS-AUDIT-003) and premium.key; logs/ exposes raw morgan access logs. Combined with the file-serving routes' permissive allowlist (servePublicFiles allows .md/.pdf or the literal name 'incident-support.kdbx'), this is a direct data exfiltration channel."
+              },
+              "help": {
+                "text": "Recommended fix: Remove serveIndex calls and the public mounts entirely. Move secrets out of the repo. Restrict any operational endpoints to internal networks with auth.",
+                "markdown": "## Directory listing of /ftp, /encryptionkeys, /support/logs\n\n**CWE:** CWE-548\n\n**OWASP:** A05:2021-Security Misconfiguration\n\n### Exploitation\n\nThree sensitive directories are publicly browseable: ftp/ contains incident-support.kdbx (KeePass db), package.json.bak, coupons_2013.md.bak, suspicious_errors.yml, encrypt.pyc; encryptionkeys/ exposes the JWT public key (used for forgery alongside JS-AUDIT-003) and premium.key; logs/ exposes raw morgan access logs. Combined with the file-serving routes' permissive allowlist (servePublicFiles allows .md/.pdf or the literal name 'incident-support.kdbx'), this is a direct data exfiltration channel.\n\n### Recommended Fix\n\nRemove serveIndex calls and the public mounts entirely. Move secrets out of the repo. Restrict any operational endpoints to internal networks with auth."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.5",
+                "tags": [
+                  "directory_listing",
+                  "info_disclosure",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-548"
+                ],
+                "owasp": [
+                  "A05:2021-Security Misconfiguration"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-017",
+              "name": "SSRF + stored XSS chain in /profile/image/url",
+              "shortDescription": {
+                "text": "SSRF + stored XSS chain in /profile/image/url"
+              },
+              "fullDescription": {
+                "text": "The user-supplied `imageUrl` is fetched server-side with no scheme, host, or DNS restriction. An attacker can probe internal services (cloud metadata at 169.254.169.254/latest/meta-data/, internal admin panels, redis, etc.) and either receive the body back via image content or use timing/error oracles. If fetch fails, the URL is then stored as the user's profileImage and rendered into CSP/HTML — yielding stored XSS via the CSP-string injection chain with JS-AUDIT-009."
+              },
+              "help": {
+                "text": "Recommended fix: Validate URL: require https scheme, resolve DNS and reject RFC1918/loopback/link-local. Use an outbound proxy with allowlist. Re-encode/store only the resulting image bytes, never the raw URL.",
+                "markdown": "## SSRF + stored XSS chain in /profile/image/url\n\n**CWE:** CWE-918\n\n**OWASP:** A10:2021-Server-Side Request Forgery\n\n### Exploitation\n\nThe user-supplied `imageUrl` is fetched server-side with no scheme, host, or DNS restriction. An attacker can probe internal services (cloud metadata at 169.254.169.254/latest/meta-data/, internal admin panels, redis, etc.) and either receive the body back via image content or use timing/error oracles. If fetch fails, the URL is then stored as the user's profileImage and rendered into CSP/HTML — yielding stored XSS via the CSP-string injection chain with JS-AUDIT-009.\n\n### Recommended Fix\n\nValidate URL: require https scheme, resolve DNS and reject RFC1918/loopback/link-local. Use an outbound proxy with allowlist. Re-encode/store only the resulting image bytes, never the raw URL."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "8.6",
+                "tags": [
+                  "ssrf",
+                  "xss",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-918"
+                ],
+                "owasp": [
+                  "A10:2021-Server-Side Request Forgery"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-018",
+              "name": "NoSQL $where JavaScript injection in trackOrder",
+              "shortDescription": {
+                "text": "NoSQL $where JavaScript injection in trackOrder"
+              },
+              "fullDescription": {
+                "text": "MarsDB's $where passes the string into a Function() constructor (Dependabot DEP-005 \"Command Injection in marsdb\"). With the 60-char truncated path the attacker can send `' || 1 || '` to dump all orders, or supply `'; return process.mainModule.require('child_process').execSync('id'); //` style payloads for remote code execution inside the Node process. CodeQL alerts 22/23 flag the same."
+              },
+              "help": {
+                "text": "Recommended fix: Replace MarsDB with a maintained store; do not use $where; query with a strict equality predicate on validated ids.",
+                "markdown": "## NoSQL $where JavaScript injection in trackOrder\n\n**CWE:** CWE-94\n\n**OWASP:** A03:2021-Injection\n\n### Exploitation\n\nMarsDB's $where passes the string into a Function() constructor (Dependabot DEP-005 \"Command Injection in marsdb\"). With the 60-char truncated path the attacker can send `' || 1 || '` to dump all orders, or supply `'; return process.mainModule.require('child_process').execSync('id'); //` style payloads for remote code execution inside the Node process. CodeQL alerts 22/23 flag the same.\n\n### Recommended Fix\n\nReplace MarsDB with a maintained store; do not use $where; query with a strict equality predicate on validated ids."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "8.6",
+                "tags": [
+                  "nosql_injection",
+                  "code_injection",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-94"
+                ],
+                "owasp": [
+                  "A03:2021-Injection"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-019",
+              "name": "NoSQL $where JavaScript injection in showProductReviews",
+              "shortDescription": {
+                "text": "NoSQL $where JavaScript injection in showProductReviews"
+              },
+              "fullDescription": {
+                "text": "Same MarsDB $where issue. An attacker can drive the server into a long-running blocking sleep (the route exposes a global `sleep` helper, deliberately for DoS), exfiltrate timing oracles, and combined with prototype walking, reach process objects."
+              },
+              "help": {
+                "text": "Recommended fix: Replace MarsDB / drop $where. Validate `id` is an integer.",
+                "markdown": "## NoSQL $where JavaScript injection in showProductReviews\n\n**CWE:** CWE-94\n\n**OWASP:** A03:2021-Injection\n\n### Exploitation\n\nSame MarsDB $where issue. An attacker can drive the server into a long-running blocking sleep (the route exposes a global `sleep` helper, deliberately for DoS), exfiltrate timing oracles, and combined with prototype walking, reach process objects.\n\n### Recommended Fix\n\nReplace MarsDB / drop $where. Validate `id` is an integer."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "8.6",
+                "tags": [
+                  "nosql_injection",
+                  "dos",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-94"
+                ],
+                "owasp": [
+                  "A03:2021-Injection"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-020",
+              "name": "Mass update via multi:true with body-controlled filter (review forgery)",
+              "shortDescription": {
+                "text": "Mass update via multi:true with body-controlled filter (review forgery)"
+              },
+              "fullDescription": {
+                "text": "The filter `_id` is whatever the user sends — including operators like `{$ne: null}` which match every document. With multi:true a single PATCH overwrites every review in the database. No ownership check (review.author == user.email) is performed."
+              },
+              "help": {
+                "text": "Recommended fix: Coerce req.body.id to a string and add `{ author: user.data.email }` to the filter. Drop multi:true.",
+                "markdown": "## Mass update via multi:true with body-controlled filter (review forgery)\n\n**CWE:** CWE-639\n\n**OWASP:** A01:2021-Broken Access Control\n\n### Exploitation\n\nThe filter `_id` is whatever the user sends — including operators like `{$ne: null}` which match every document. With multi:true a single PATCH overwrites every review in the database. No ownership check (review.author == user.email) is performed.\n\n### Recommended Fix\n\nCoerce req.body.id to a string and add `{ author: user.data.email }` to the filter. Drop multi:true."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.7",
+                "tags": [
+                  "idor",
+                  "nosql_injection",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-639"
+                ],
+                "owasp": [
+                  "A01:2021-Broken Access Control"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-021",
+              "name": "IDOR: body-controlled UserId determines wallet balance reads/writes",
+              "shortDescription": {
+                "text": "IDOR: body-controlled UserId determines wallet balance reads/writes"
+              },
+              "fullDescription": {
+                "text": "appendUserId() writes req.body.UserId, but body fields submitted by the client overwrite/merge. By POSTing {UserId: <victimId>, balance: 1000000} the attacker drains/credits arbitrary wallets. The same body field also controls the SELECT and the card ownership check."
+              },
+              "help": {
+                "text": "Recommended fix: Derive UserId server-side from the JWT *after* clearing any client-supplied value. Reject requests that contain UserId in body.",
+                "markdown": "## IDOR: body-controlled UserId determines wallet balance reads/writes\n\n**CWE:** CWE-639\n\n**OWASP:** A01:2021-Broken Access Control\n\n### Exploitation\n\nappendUserId() writes req.body.UserId, but body fields submitted by the client overwrite/merge. By POSTing {UserId: <victimId>, balance: 1000000} the attacker drains/credits arbitrary wallets. The same body field also controls the SELECT and the card ownership check.\n\n### Recommended Fix\n\nDerive UserId server-side from the JWT *after* clearing any client-supplied value. Reject requests that contain UserId in body."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "8.1",
+                "tags": [
+                  "idor",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-639"
+                ],
+                "owasp": [
+                  "A01:2021-Broken Access Control"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-022",
+              "name": "IDOR in /rest/user/data-export via body-supplied UserId",
+              "shortDescription": {
+                "text": "IDOR in /rest/user/data-export via body-supplied UserId"
+              },
+              "fullDescription": {
+                "text": "MemoryModel query uses req.body.UserId (mass-assigned by appendUserId() but client-overridable). Attacker harvests other users' memories. Orders/reviews are queried by the logged-in email (better) but the memories leak is sufficient for a privacy breach."
+              },
+              "help": {
+                "text": "Recommended fix: Use loggedInUser.data.id; ignore body.UserId.",
+                "markdown": "## IDOR in /rest/user/data-export via body-supplied UserId\n\n**CWE:** CWE-639\n\n**OWASP:** A01:2021-Broken Access Control\n\n### Exploitation\n\nMemoryModel query uses req.body.UserId (mass-assigned by appendUserId() but client-overridable). Attacker harvests other users' memories. Orders/reviews are queried by the logged-in email (better) but the memories leak is sufficient for a privacy breach.\n\n### Recommended Fix\n\nUse loggedInUser.data.id; ignore body.UserId."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.7",
+                "tags": [
+                  "idor",
+                  "info_disclosure",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-639"
+                ],
+                "owasp": [
+                  "A01:2021-Broken Access Control"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-023",
+              "name": "IDOR on /api/Addresss/:id via body UserId",
+              "shortDescription": {
+                "text": "IDOR on /api/Addresss/:id via body UserId"
+              },
+              "fullDescription": {
+                "text": "Same pattern: appendUserId puts UserId in body but the body can be tampered with. Read/delete arbitrary addresses."
+              },
+              "help": {
+                "text": "Recommended fix: Pull UserId from the JWT only.",
+                "markdown": "## IDOR on /api/Addresss/:id via body UserId\n\n**CWE:** CWE-639\n\n**OWASP:** A01:2021-Broken Access Control\n\n### Exploitation\n\nSame pattern: appendUserId puts UserId in body but the body can be tampered with. Read/delete arbitrary addresses.\n\n### Recommended Fix\n\nPull UserId from the JWT only."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.5",
+                "tags": [
+                  "idor",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-639"
+                ],
+                "owasp": [
+                  "A01:2021-Broken Access Control"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-024",
+              "name": "IDOR + free-deluxe upgrade in /rest/deluxe-membership",
+              "shortDescription": {
+                "text": "IDOR + free-deluxe upgrade in /rest/deluxe-membership"
+              },
+              "fullDescription": {
+                "text": "Body-supplied UserId + the paymentMode branch only checks card/wallet if those modes are *named*. Omitting paymentMode skips payment entirely and still promotes the chosen UserId to 'deluxe', as the route's freeDeluxeChallenge helper confirms."
+              },
+              "help": {
+                "text": "Recommended fix: Authoritative UserId from JWT; require a payment mode; transactionally debit + upgrade.",
+                "markdown": "## IDOR + free-deluxe upgrade in /rest/deluxe-membership\n\n**CWE:** CWE-639\n\n**OWASP:** A01:2021-Broken Access Control\n\n### Exploitation\n\nBody-supplied UserId + the paymentMode branch only checks card/wallet if those modes are *named*. Omitting paymentMode skips payment entirely and still promotes the chosen UserId to 'deluxe', as the route's freeDeluxeChallenge helper confirms.\n\n### Recommended Fix\n\nAuthoritative UserId from JWT; require a payment mode; transactionally debit + upgrade."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "6.5",
+                "tags": [
+                  "idor",
+                  "business_logic",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-639"
+                ],
+                "owasp": [
+                  "A01:2021-Broken Access Control"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-025",
+              "name": "Conditional current-password check + CSRF + password-in-query in changePassword",
+              "shortDescription": {
+                "text": "Conditional current-password check + CSRF + password-in-query in changePassword"
+              },
+              "fullDescription": {
+                "text": "If `current` is absent the check is *skipped entirely*, allowing any session holder to set a new password without proving knowledge of the old one. The route is GET (line uses req.query — confirmed by CodeQL alerts 14-16 'js/sensitive-get-query'), so any cross-origin `<img src=/rest/user/change-password?new=hacked&repeat=hacked>` performs the change with the victim's ambient cookie token. No CSRF protection. Passwords also end up in browser history, proxies, and access logs."
+              },
+              "help": {
+                "text": "Recommended fix: Change method to POST/PATCH, require current password, add CSRF protection (SameSite=strict cookies + CSRF token / double-submit). Read password from body, never the query string.",
+                "markdown": "## Conditional current-password check + CSRF + password-in-query in changePassword\n\n**CWE:** CWE-620\n\n**OWASP:** A07:2021-Identification and Authentication Failures\n\n### Exploitation\n\nIf `current` is absent the check is *skipped entirely*, allowing any session holder to set a new password without proving knowledge of the old one. The route is GET (line uses req.query — confirmed by CodeQL alerts 14-16 'js/sensitive-get-query'), so any cross-origin `<img src=/rest/user/change-password?new=hacked&repeat=hacked>` performs the change with the victim's ambient cookie token. No CSRF protection. Passwords also end up in browser history, proxies, and access logs.\n\n### Recommended Fix\n\nChange method to POST/PATCH, require current password, add CSRF protection (SameSite=strict cookies + CSRF token / double-submit). Read password from body, never the query string."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "9.6",
+                "tags": [
+                  "csrf",
+                  "auth_flaw",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-620"
+                ],
+                "owasp": [
+                  "A07:2021-Identification and Authentication Failures"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-026",
+              "name": "Reset-password rate limiter keys on attacker-controllable X-Forwarded-For",
+              "shortDescription": {
+                "text": "Reset-password rate limiter keys on attacker-controllable X-Forwarded-For"
+              },
+              "fullDescription": {
+                "text": "`app.enable('trust proxy')` (line 342) plus a header-derived rate-limit key allows an attacker to rotate X-Forwarded-For on every request, making the limit ineffective. This unblocks security-answer guessing against /rest/user/reset-password (combined with JS-AUDIT-005 hardcoded HMAC secret, full account takeover is feasible)."
+              },
+              "help": {
+                "text": "Recommended fix: Use a trustworthy proxy chain (Express trust proxy with concrete proxy IPs) and key off req.ip post-trust. Add account-level lockout / CAPTCHA.",
+                "markdown": "## Reset-password rate limiter keys on attacker-controllable X-Forwarded-For\n\n**CWE:** CWE-307\n\n**OWASP:** A07:2021-Identification and Authentication Failures\n\n### Exploitation\n\n`app.enable('trust proxy')` (line 342) plus a header-derived rate-limit key allows an attacker to rotate X-Forwarded-For on every request, making the limit ineffective. This unblocks security-answer guessing against /rest/user/reset-password (combined with JS-AUDIT-005 hardcoded HMAC secret, full account takeover is feasible).\n\n### Recommended Fix\n\nUse a trustworthy proxy chain (Express trust proxy with concrete proxy IPs) and key off req.ip post-trust. Add account-level lockout / CAPTCHA."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.3",
+                "tags": [
+                  "missing_rate_limit",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-307"
+                ],
+                "owasp": [
+                  "A07:2021-Identification and Authentication Failures"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-027",
+              "name": "Unauthenticated full configuration dump on /rest/admin/application-configuration",
+              "shortDescription": {
+                "text": "Unauthenticated full configuration dump on /rest/admin/application-configuration"
+              },
+              "fullDescription": {
+                "text": "The route is mounted at server.ts:605 with no auth and serializes the entire `config` object — leaking application secrets that may be present in node-config layers (challenge keys, hashes, ctf flags, etc.). 'admin' in the path is purely cosmetic."
+              },
+              "help": {
+                "text": "Recommended fix: Place behind admin auth; return only non-sensitive subkeys.",
+                "markdown": "## Unauthenticated full configuration dump on /rest/admin/application-configuration\n\n**CWE:** CWE-200\n\n**OWASP:** A05:2021-Security Misconfiguration\n\n### Exploitation\n\nThe route is mounted at server.ts:605 with no auth and serializes the entire `config` object — leaking application secrets that may be present in node-config layers (challenge keys, hashes, ctf flags, etc.). 'admin' in the path is purely cosmetic.\n\n### Recommended Fix\n\nPlace behind admin auth; return only non-sensitive subkeys."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.5",
+                "tags": [
+                  "info_disclosure",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-200"
+                ],
+                "owasp": [
+                  "A05:2021-Security Misconfiguration"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-028",
+              "name": "Sequelize where-injection via JSON.parse(req.params.id) in /api/Recycles/:id",
+              "shortDescription": {
+                "text": "Sequelize where-injection via JSON.parse(req.params.id) in /api/Recycles/:id"
+              },
+              "fullDescription": {
+                "text": "Parsing `req.params.id` as JSON lets an attacker pass `{\"$gt\":0}` or other Sequelize operator objects into the where clause, dumping the entire Recycles table. Throws on bad input, but valid JSON objects/operators are accepted directly."
+              },
+              "help": {
+                "text": "Recommended fix: Coerce id to Number; do not JSON.parse user path parameters.",
+                "markdown": "## Sequelize where-injection via JSON.parse(req.params.id) in /api/Recycles/:id\n\n**CWE:** CWE-89\n\n**OWASP:** A03:2021-Injection\n\n### Exploitation\n\nParsing `req.params.id` as JSON lets an attacker pass `{\"$gt\":0}` or other Sequelize operator objects into the where clause, dumping the entire Recycles table. Throws on bad input, but valid JSON objects/operators are accepted directly.\n\n### Recommended Fix\n\nCoerce id to Number; do not JSON.parse user path parameters."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.4",
+                "tags": [
+                  "sql_injection",
+                  "tier3"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-89"
+                ],
+                "owasp": [
+                  "A03:2021-Injection"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-029",
+              "name": "Chatbot remote training data download + dynamic dispatch on botUtils[handler]",
+              "shortDescription": {
+                "text": "Chatbot remote training data download + dynamic dispatch on botUtils[handler]"
+              },
+              "fullDescription": {
+                "text": "If `application.chatBot.trainingData` is configured to a URL, the server fetches *unauthenticated* code-influencing data over the network with no integrity check (no checksum/signature). Anyone able to MITM or compromise the host serving the training data can change bot intents — including ones that influence the `handler` dispatch through botUtils. CodeQL flags the property-injection pattern (alerts 50-54)."
+              },
+              "help": {
+                "text": "Recommended fix: Pin and SHA-256 verify training assets; load from a trusted, immutable URL or repository; whitelist `response.handler` against a constant map.",
+                "markdown": "## Chatbot remote training data download + dynamic dispatch on botUtils[handler]\n\n**CWE:** CWE-94\n\n**OWASP:** A08:2021-Software and Data Integrity Failures\n\n### Exploitation\n\nIf `application.chatBot.trainingData` is configured to a URL, the server fetches *unauthenticated* code-influencing data over the network with no integrity check (no checksum/signature). Anyone able to MITM or compromise the host serving the training data can change bot intents — including ones that influence the `handler` dispatch through botUtils. CodeQL flags the property-injection pattern (alerts 50-54).\n\n### Recommended Fix\n\nPin and SHA-256 verify training assets; load from a trusted, immutable URL or repository; whitelist `response.handler` against a constant map."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.2",
+                "tags": [
+                  "supply_chain",
+                  "remote_property_injection",
+                  "tier3"
+                ],
+                "precision": "medium",
+                "cwe": [
+                  "CWE-94"
+                ],
+                "owasp": [
+                  "A08:2021-Software and Data Integrity Failures"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-030",
+              "name": "Hard-coded Alchemy WebSocket API key for Ethereum Sepolia",
+              "shortDescription": {
+                "text": "Hard-coded Alchemy WebSocket API key for Ethereum Sepolia"
+              },
+              "fullDescription": {
+                "text": "Alchemy API key is committed to the repo. Anyone can quota-drain or abuse the project's Alchemy account. The same key appears in routes/nftMint.ts:16. While Sepolia is testnet, billing/throttling still applies and the owner is responsible."
+              },
+              "help": {
+                "text": "Recommended fix: Load from env (process.env.ALCHEMY_KEY); rotate the leaked key immediately.",
+                "markdown": "## Hard-coded Alchemy WebSocket API key for Ethereum Sepolia\n\n**CWE:** CWE-798\n\n**OWASP:** A05:2021-Security Misconfiguration\n\n### Exploitation\n\nAlchemy API key is committed to the repo. Anyone can quota-drain or abuse the project's Alchemy account. The same key appears in routes/nftMint.ts:16. While Sepolia is testnet, billing/throttling still applies and the owner is responsible.\n\n### Recommended Fix\n\nLoad from env (process.env.ALCHEMY_KEY); rotate the leaked key immediately."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.3",
+                "tags": [
+                  "hardcoded_secret",
+                  "tier3"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-798"
+                ],
+                "owasp": [
+                  "A05:2021-Security Misconfiguration"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-031",
+              "name": "Wide-open CORS — `app.use(cors())` with no origin allow-list",
+              "shortDescription": {
+                "text": "Wide-open CORS — `app.use(cors())` with no origin allow-list"
+              },
+              "fullDescription": {
+                "text": "Default cors() reflects the request Origin and responds with Access-Control-Allow-Origin matching any caller. Combined with cookie-based JWT (security.updateAuthenticatedUsers reads req.cookies.token) and bearer tokens in localStorage, any third-party page can read responses cross-origin. This nullifies same-origin protections for the entire API."
+              },
+              "help": {
+                "text": "Recommended fix: Configure cors() with an explicit origins allow-list (production frontend host only), credentials:false unless required, and a strict allowed-methods/headers list.",
+                "markdown": "## Wide-open CORS — `app.use(cors())` with no origin allow-list\n\n**CWE:** CWE-942\n\n**OWASP:** A05:2021-Security Misconfiguration\n\n### Exploitation\n\nDefault cors() reflects the request Origin and responds with Access-Control-Allow-Origin matching any caller. Combined with cookie-based JWT (security.updateAuthenticatedUsers reads req.cookies.token) and bearer tokens in localStorage, any third-party page can read responses cross-origin. This nullifies same-origin protections for the entire API.\n\n### Recommended Fix\n\nConfigure cors() with an explicit origins allow-list (production frontend host only), credentials:false unless required, and a strict allowed-methods/headers list."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.4",
+                "tags": [
+                  "cors_misconfiguration",
+                  "tier3"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-942"
+                ],
+                "owasp": [
+                  "A05:2021-Security Misconfiguration"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-032",
+              "name": "Slash-collapse middleware breaks downstream path-based protections",
+              "shortDescription": {
+                "text": "Slash-collapse middleware breaks downstream path-based protections"
+              },
+              "fullDescription": {
+                "text": "Globally rewriting req.url after Express parses it can desynchronise router matching from the URL the application thinks it is serving (e.g. for swagger, static files, and HTTP cache keys). Combined with the redirect/file-server allowlists that match on substrings, this provides additional bypass surface."
+              },
+              "help": {
+                "text": "Recommended fix: Use express-slash or perform path normalisation at the edge / reverse proxy, not after routing decisions.",
+                "markdown": "## Slash-collapse middleware breaks downstream path-based protections\n\n**CWE:** CWE-444\n\n**OWASP:** A05:2021-Security Misconfiguration\n\n### Exploitation\n\nGlobally rewriting req.url after Express parses it can desynchronise router matching from the URL the application thinks it is serving (e.g. for swagger, static files, and HTTP cache keys). Combined with the redirect/file-server allowlists that match on substrings, this provides additional bypass surface.\n\n### Recommended Fix\n\nUse express-slash or perform path normalisation at the edge / reverse proxy, not after routing decisions."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.3",
+                "tags": [
+                  "request_smuggling_adjacent",
+                  "tier3"
+                ],
+                "precision": "medium",
+                "cwe": [
+                  "CWE-444"
+                ],
+                "owasp": [
+                  "A05:2021-Security Misconfiguration"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-033",
+              "name": "Dev `errorhandler` middleware mounted in production — stack trace exposure",
+              "shortDescription": {
+                "text": "Dev `errorhandler` middleware mounted in production — stack trace exposure"
+              },
+              "fullDescription": {
+                "text": "The `errorhandler` package is intended for development; it renders full HTML stack traces including local file paths, source lines, and stack frames. It is mounted unconditionally. Many routes intentionally call next(err) on edge cases, leaking implementation detail and aiding further attack. CodeQL js/stack-trace-exposure flags individual instances too (alerts 7-13)."
+              },
+              "help": {
+                "text": "Recommended fix: Mount only when process.env.NODE_ENV === 'development'; use a JSON error responder in production that hides stack frames.",
+                "markdown": "## Dev `errorhandler` middleware mounted in production — stack trace exposure\n\n**CWE:** CWE-209\n\n**OWASP:** A05:2021-Security Misconfiguration\n\n### Exploitation\n\nThe `errorhandler` package is intended for development; it renders full HTML stack traces including local file paths, source lines, and stack frames. It is mounted unconditionally. Many routes intentionally call next(err) on edge cases, leaking implementation detail and aiding further attack. CodeQL js/stack-trace-exposure flags individual instances too (alerts 7-13).\n\n### Recommended Fix\n\nMount only when process.env.NODE_ENV === 'development'; use a JSON error responder in production that hides stack frames."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.3",
+                "tags": [
+                  "verbose_error",
+                  "tier3"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-209"
+                ],
+                "owasp": [
+                  "A05:2021-Security Misconfiguration"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-034",
+              "name": "Unauthenticated /metrics endpoint reveals internal request topology and labels",
+              "shortDescription": {
+                "text": "Unauthenticated /metrics endpoint reveals internal request topology and labels"
+              },
+              "fullDescription": {
+                "text": "Prometheus metrics include process metrics (memory, CPU, event-loop lag), request counts/labels (revealing endpoints), and a custom file-upload histogram. Useful for an attacker mapping the API surface and confirming successful exploitation (e.g. when memory spikes on yaml-bomb)."
+              },
+              "help": {
+                "text": "Recommended fix: Bind /metrics to an internal listener or require admin auth / IP allowlist.",
+                "markdown": "## Unauthenticated /metrics endpoint reveals internal request topology and labels\n\n**CWE:** CWE-200\n\n**OWASP:** A05:2021-Security Misconfiguration\n\n### Exploitation\n\nPrometheus metrics include process metrics (memory, CPU, event-loop lag), request counts/labels (revealing endpoints), and a custom file-upload histogram. Useful for an attacker mapping the API surface and confirming successful exploitation (e.g. when memory spikes on yaml-bomb).\n\n### Recommended Fix\n\nBind /metrics to an internal listener or require admin auth / IP allowlist."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.3",
+                "tags": [
+                  "info_disclosure",
+                  "tier3"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-200"
+                ],
+                "owasp": [
+                  "A05:2021-Security Misconfiguration"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-035",
+              "name": "Path traversal in /encryptionkeys/:file, /support/logs/:file, /ftp/:file",
+              "shortDescription": {
+                "text": "Path traversal in /encryptionkeys/:file, /support/logs/:file, /ftp/:file"
+              },
+              "fullDescription": {
+                "text": "Disallowing only '/' is insufficient — '%2e%2e%2f' and other encodings, and on some platforms '\\\\', bypass the filter. servePublicFiles additionally allows the literal `incident-support.kdbx`, exposing a KeePass database, and uses `cutOffPoisonNullByte` to enable %00-truncation attacks on its extension allowlist (so attacker can serve any file by appending `.md%00`). serveLogFiles and serveKeyFiles use the same naive `/`-only guard."
+              },
+              "help": {
+                "text": "Recommended fix: Use a strict allowlist of filenames or `decodeURIComponent` + `path.normalize` + startsWith(root) check + explicit extension whitelist.",
+                "markdown": "## Path traversal in /encryptionkeys/:file, /support/logs/:file, /ftp/:file\n\n**CWE:** CWE-22\n\n**OWASP:** A01:2021-Broken Access Control\n\n### Exploitation\n\nDisallowing only '/' is insufficient — '%2e%2e%2f' and other encodings, and on some platforms '\\\\', bypass the filter. servePublicFiles additionally allows the literal `incident-support.kdbx`, exposing a KeePass database, and uses `cutOffPoisonNullByte` to enable %00-truncation attacks on its extension allowlist (so attacker can serve any file by appending `.md%00`). serveLogFiles and serveKeyFiles use the same naive `/`-only guard.\n\n### Recommended Fix\n\nUse a strict allowlist of filenames or `decodeURIComponent` + `path.normalize` + startsWith(root) check + explicit extension whitelist."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.5",
+                "tags": [
+                  "path_traversal",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-22"
+                ],
+                "owasp": [
+                  "A01:2021-Broken Access Control"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-036",
+              "name": "Template object injection / LFR via dataErasure layout parameter",
+              "shortDescription": {
+                "text": "Template object injection / LFR via dataErasure layout parameter"
+              },
+              "fullDescription": {
+                "text": "req.body is spread into hbs locals and req.body.layout influences template lookup. A targeted `layout` value can pull arbitrary file content into the rendered view (the code itself solves lfrChallenge). The denylist is substring-based and case-toggled, so encodings or unrelated paths still slip through."
+              },
+              "help": {
+                "text": "Recommended fix: Do not allow client to pick the layout. Use a fixed layout name.",
+                "markdown": "## Template object injection / LFR via dataErasure layout parameter\n\n**CWE:** CWE-73\n\n**OWASP:** A03:2021-Injection\n\n### Exploitation\n\nreq.body is spread into hbs locals and req.body.layout influences template lookup. A targeted `layout` value can pull arbitrary file content into the rendered view (the code itself solves lfrChallenge). The denylist is substring-based and case-toggled, so encodings or unrelated paths still slip through.\n\n### Recommended Fix\n\nDo not allow client to pick the layout. Use a fixed layout name."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "6.1",
+                "tags": [
+                  "lfr",
+                  "template_injection",
+                  "tier2"
+                ],
+                "precision": "medium",
+                "cwe": [
+                  "CWE-73"
+                ],
+                "owasp": [
+                  "A03:2021-Injection"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-037",
+              "name": "Payment card numbers stored as plaintext (INTEGER) without tokenization",
+              "shortDescription": {
+                "text": "Payment card numbers stored as plaintext (INTEGER) without tokenization"
+              },
+              "fullDescription": {
+                "text": "Full 16-digit PANs stored as integers — no tokenization, no encryption-at-rest, and no PCI segregation. Combined with the UNION SQLi (JS-AUDIT-002) every card becomes exfiltratable. This would be a PCI-DSS violation on day one."
+              },
+              "help": {
+                "text": "Recommended fix: Do not store PANs. Tokenize via a PCI-DSS-compliant processor (Stripe/Adyen). At minimum, store only last 4 digits + a vault token.",
+                "markdown": "## Payment card numbers stored as plaintext (INTEGER) without tokenization\n\n**CWE:** CWE-311\n\n**OWASP:** A02:2021-Cryptographic Failures\n\n### Exploitation\n\nFull 16-digit PANs stored as integers — no tokenization, no encryption-at-rest, and no PCI segregation. Combined with the UNION SQLi (JS-AUDIT-002) every card becomes exfiltratable. This would be a PCI-DSS violation on day one.\n\n### Recommended Fix\n\nDo not store PANs. Tokenize via a PCI-DSS-compliant processor (Stripe/Adyen). At minimum, store only last 4 digits + a vault token."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "8.1",
+                "tags": [
+                  "sensitive_data",
+                  "pci",
+                  "tier2"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-311"
+                ],
+                "owasp": [
+                  "A02:2021-Cryptographic Failures"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-038",
+              "name": "Race condition in lib/codingChallenges.ts file caching",
+              "shortDescription": {
+                "text": "Race condition in lib/codingChallenges.ts file caching"
+              },
+              "fullDescription": {
+                "text": "CodeQL js/file-system-race identifies a TOCTOU between lstat and readFile. Practically the path is the repo's own source tree and runs at boot from a trusted FS, so impact is low. Worth fixing for correctness."
+              },
+              "help": {
+                "text": "Recommended fix: Use one fs.stat-and-open call; or simply attempt readFile and catch EISDIR.",
+                "markdown": "## Race condition in lib/codingChallenges.ts file caching\n\n**CWE:** CWE-367\n\n**OWASP:** A04:2021-Insecure Design\n\n### Exploitation\n\nCodeQL js/file-system-race identifies a TOCTOU between lstat and readFile. Practically the path is the repo's own source tree and runs at boot from a trusted FS, so impact is low. Worth fixing for correctness.\n\n### Recommended Fix\n\nUse one fs.stat-and-open call; or simply attempt readFile and catch EISDIR."
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "security-severity": "3.1",
+                "tags": [
+                  "toctou",
+                  "needs_review"
+                ],
+                "precision": "medium",
+                "cwe": [
+                  "CWE-367"
+                ],
+                "owasp": [
+                  "A04:2021-Insecure Design"
+                ],
+                "triage": "needs_review"
+              }
+            },
+            {
+              "id": "JS-AUDIT-039",
+              "name": "Logging of cheat scores includes user-controlled challenge metadata (log injection)",
+              "shortDescription": {
+                "text": "Logging of cheat scores includes user-controlled challenge metadata (log injection)"
+              },
+              "fullDescription": {
+                "text": "CodeQL flagged log-injection in lib/challengeUtils.ts (alert 49). The challenge.key here is internal not user-input, so direct injection is limited. Per the engagement rules we exclude pure log-injection findings — marking needs_review only because logs are publicly served via /support/logs (see JS-AUDIT-016) which gives the otherwise-low finding a real exfil pathway."
+              },
+              "help": {
+                "text": "Recommended fix: JSON-encode user-influenced log fields; do not expose logs publicly.",
+                "markdown": "## Logging of cheat scores includes user-controlled challenge metadata (log injection)\n\n**CWE:** CWE-117\n\n**OWASP:** A09:2021-Security Logging and Monitoring Failures\n\n### Exploitation\n\nCodeQL flagged log-injection in lib/challengeUtils.ts (alert 49). The challenge.key here is internal not user-input, so direct injection is limited. Per the engagement rules we exclude pure log-injection findings — marking needs_review only because logs are publicly served via /support/logs (see JS-AUDIT-016) which gives the otherwise-low finding a real exfil pathway.\n\n### Recommended Fix\n\nJSON-encode user-influenced log fields; do not expose logs publicly."
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "security-severity": "3.1",
+                "tags": [
+                  "log_injection",
+                  "needs_review"
+                ],
+                "precision": "low",
+                "cwe": [
+                  "CWE-117"
+                ],
+                "owasp": [
+                  "A09:2021-Security Logging and Monitoring Failures"
+                ],
+                "triage": "needs_review"
+              }
+            },
+            {
+              "id": "JS-AUDIT-040",
+              "name": "Hard-coded private mnemonic + secret comparison without constant-time check in checkKeys",
+              "shortDescription": {
+                "text": "Hard-coded private mnemonic + secret comparison without constant-time check in checkKeys"
+              },
+              "fullDescription": {
+                "text": "An HD wallet mnemonic is committed to source. While intentionally used as a challenge target, in production this constitutes an immediate full key compromise. Equality check on the private key uses ===, which is timing-leaking (low risk but worth fixing)."
+              },
+              "help": {
+                "text": "Recommended fix: Do not store HD mnemonics in code. Use crypto.timingSafeEqual for any secret comparison.",
+                "markdown": "## Hard-coded private mnemonic + secret comparison without constant-time check in checkKeys\n\n**CWE:** CWE-798\n\n**OWASP:** A02:2021-Cryptographic Failures\n\n### Exploitation\n\nAn HD wallet mnemonic is committed to source. While intentionally used as a challenge target, in production this constitutes an immediate full key compromise. Equality check on the private key uses ===, which is timing-leaking (low risk but worth fixing).\n\n### Recommended Fix\n\nDo not store HD mnemonics in code. Use crypto.timingSafeEqual for any secret comparison."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.9",
+                "tags": [
+                  "hardcoded_secret",
+                  "tier3"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-798"
+                ],
+                "owasp": [
+                  "A02:2021-Cryptographic Failures"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-041",
+              "name": "Multer 1.4.5-lts.1 vulnerable to multiple DoS/CVE advisories",
+              "shortDescription": {
+                "text": "Multer 1.4.5-lts.1 vulnerable to multiple DoS/CVE advisories"
+              },
+              "fullDescription": {
+                "text": "Dependabot lists 6 DoS advisories for multer<2.1.1 including CVE-2026-3520, all of which crash or memory-leak the Node process on crafted multipart requests. /file-upload, /profile/image/file, /rest/memories are all reachable on any deployment. Engagement guidance flags pure DoS as informational normally, but in a real production deployment this is a high-priority availability bug."
+              },
+              "help": {
+                "text": "Recommended fix: Upgrade to multer >= 2.1.1.",
+                "markdown": "## Multer 1.4.5-lts.1 vulnerable to multiple DoS/CVE advisories\n\n**CWE:** CWE-400\n\n**OWASP:** A06:2021-Vulnerable and Outdated Components\n\n### Exploitation\n\nDependabot lists 6 DoS advisories for multer<2.1.1 including CVE-2026-3520, all of which crash or memory-leak the Node process on crafted multipart requests. /file-upload, /profile/image/file, /rest/memories are all reachable on any deployment. Engagement guidance flags pure DoS as informational normally, but in a real production deployment this is a high-priority availability bug.\n\n### Recommended Fix\n\nUpgrade to multer >= 2.1.1."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.5",
+                "tags": [
+                  "vulnerable_dependency",
+                  "dos"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-400"
+                ],
+                "owasp": [
+                  "A06:2021-Vulnerable and Outdated Components"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-042",
+              "name": "sanitize-html 1.4.2 — XSS bypass + ReDoS + IDN bypass",
+              "shortDescription": {
+                "text": "sanitize-html 1.4.2 — XSS bypass + ReDoS + IDN bypass"
+              },
+              "fullDescription": {
+                "text": "Project pins sanitize-html@1.4.2 (Dependabot alerts 2,3,6,7,11,12,18). Multiple XSS-bypass and ReDoS advisories apply. The function is called on usernames/emails in models/user.ts and is also used by sanitizeSecure for legacy XSS protection. This directly enables persistent XSS in the storefront."
+              },
+              "help": {
+                "text": "Recommended fix: Upgrade to sanitize-html >= 2.12.1 and lock to a strict allow-list of tags/attrs. Consider DOMPurify on the frontend.",
+                "markdown": "## sanitize-html 1.4.2 — XSS bypass + ReDoS + IDN bypass\n\n**CWE:** CWE-79\n\n**OWASP:** A06:2021-Vulnerable and Outdated Components\n\n### Exploitation\n\nProject pins sanitize-html@1.4.2 (Dependabot alerts 2,3,6,7,11,12,18). Multiple XSS-bypass and ReDoS advisories apply. The function is called on usernames/emails in models/user.ts and is also used by sanitizeSecure for legacy XSS protection. This directly enables persistent XSS in the storefront.\n\n### Recommended Fix\n\nUpgrade to sanitize-html >= 2.12.1 and lock to a strict allow-list of tags/attrs. Consider DOMPurify on the frontend."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.4",
+                "tags": [
+                  "vulnerable_dependency",
+                  "xss"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-79"
+                ],
+                "owasp": [
+                  "A06:2021-Vulnerable and Outdated Components"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-043",
+              "name": "marsdb — unmaintained, $where -> Function() command injection",
+              "shortDescription": {
+                "text": "marsdb — unmaintained, $where -> Function() command injection"
+              },
+              "fullDescription": {
+                "text": "Dependabot alert 5 'Command Injection in marsdb' — `DocumentMatcher` selectors on $where pass through `new Function(...)`. With no maintainer fix, the only mitigation is to eliminate $where usage (currently used in trackOrder/showProductReviews/likeProductReviews paths)."
+              },
+              "help": {
+                "text": "Recommended fix: Replace marsdb. Eliminate $where. Migrate review/order data to Sequelize/SQLite.",
+                "markdown": "## marsdb — unmaintained, $where -> Function() command injection\n\n**CWE:** CWE-94\n\n**OWASP:** A06:2021-Vulnerable and Outdated Components\n\n### Exploitation\n\nDependabot alert 5 'Command Injection in marsdb' — `DocumentMatcher` selectors on $where pass through `new Function(...)`. With no maintainer fix, the only mitigation is to eliminate $where usage (currently used in trackOrder/showProductReviews/likeProductReviews paths).\n\n### Recommended Fix\n\nReplace marsdb. Eliminate $where. Migrate review/order data to Sequelize/SQLite."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "9.0",
+                "tags": [
+                  "vulnerable_dependency",
+                  "code_injection",
+                  "rce"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-94"
+                ],
+                "owasp": [
+                  "A06:2021-Vulnerable and Outdated Components"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-044",
+              "name": "socket.io 3.1.2 — unhandled error event crash",
+              "shortDescription": {
+                "text": "socket.io 3.1.2 — unhandled error event crash"
+              },
+              "fullDescription": {
+                "text": "Dependabot alert 13: a crafted Socket.IO packet triggers an unhandled 'error' event killing the Node process. server.ts wires registerWebsocketEvents which uses socket.io."
+              },
+              "help": {
+                "text": "Recommended fix: Upgrade to socket.io >= 4.6.2, attach socket.on('error') handlers.",
+                "markdown": "## socket.io 3.1.2 — unhandled error event crash\n\n**CWE:** CWE-248\n\n**OWASP:** A06:2021-Vulnerable and Outdated Components\n\n### Exploitation\n\nDependabot alert 13: a crafted Socket.IO packet triggers an unhandled 'error' event killing the Node process. server.ts wires registerWebsocketEvents which uses socket.io.\n\n### Recommended Fix\n\nUpgrade to socket.io >= 4.6.2, attach socket.on('error') handlers."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.3",
+                "tags": [
+                  "vulnerable_dependency",
+                  "dos"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-248"
+                ],
+                "owasp": [
+                  "A06:2021-Vulnerable and Outdated Components"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-045",
+              "name": "file-type 16.5.4 vulnerable to ASF infinite-loop DoS",
+              "shortDescription": {
+                "text": "file-type 16.5.4 vulnerable to ASF infinite-loop DoS"
+              },
+              "fullDescription": {
+                "text": "Dependabot 22: a 55-byte malformed ASF header stalls the event loop indefinitely. profileImageFileUpload pipes the user-supplied buffer through fileType.fromBuffer. Stalling the single Node thread blocks all requests."
+              },
+              "help": {
+                "text": "Recommended fix: Upgrade to file-type >= 21.3.1 (note ESM change in 17+; may require code adjustments).",
+                "markdown": "## file-type 16.5.4 vulnerable to ASF infinite-loop DoS\n\n**CWE:** CWE-835\n\n**OWASP:** A06:2021-Vulnerable and Outdated Components\n\n### Exploitation\n\nDependabot 22: a 55-byte malformed ASF header stalls the event loop indefinitely. profileImageFileUpload pipes the user-supplied buffer through fileType.fromBuffer. Stalling the single Node thread blocks all requests.\n\n### Recommended Fix\n\nUpgrade to file-type >= 21.3.1 (note ESM change in 17+; may require code adjustments)."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "security-severity": "5.3",
+                "tags": [
+                  "vulnerable_dependency",
+                  "dos"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-835"
+                ],
+                "owasp": [
+                  "A06:2021-Vulnerable and Outdated Components"
+                ],
+                "triage": "confirmed"
+              }
+            },
+            {
+              "id": "JS-AUDIT-046",
+              "name": "Polynomial ReDoS in profileImageUrlUpload SSRF detection regex",
+              "shortDescription": {
+                "text": "Polynomial ReDoS in profileImageUrlUpload SSRF detection regex"
+              },
+              "fullDescription": {
+                "text": "CodeQL flagged js/polynomial-redos. The repeated `(.)*` is polynomial, not exponential, and the route already incurs a network fetch right after, so any ReDoS spike is dwarfed by the SSRF I/O. Per engagement rules ReDoS without demonstrated impact is excluded. Marking as false_positive while the underlying SSRF (JS-AUDIT-017) carries the real risk."
+              },
+              "help": {
+                "text": "Recommended fix: Replace with `url.includes('solve/challenges/server-side')`.",
+                "markdown": "## Polynomial ReDoS in profileImageUrlUpload SSRF detection regex\n\n**CWE:** CWE-1333\n\n**OWASP:** A06:2021-Vulnerable and Outdated Components\n\n### Exploitation\n\nCodeQL flagged js/polynomial-redos. The repeated `(.)*` is polynomial, not exponential, and the route already incurs a network fetch right after, so any ReDoS spike is dwarfed by the SSRF I/O. Per engagement rules ReDoS without demonstrated impact is excluded. Marking as false_positive while the underlying SSRF (JS-AUDIT-017) carries the real risk.\n\n### Recommended Fix\n\nReplace with `url.includes('solve/challenges/server-side')`."
+              },
+              "defaultConfiguration": {
+                "level": "none"
+              },
+              "properties": {
+                "security-severity": "0.0",
+                "tags": [
+                  "redos",
+                  "false_positive"
+                ],
+                "precision": "medium",
+                "cwe": [
+                  "CWE-1333"
+                ],
+                "owasp": [
+                  "A06:2021-Vulnerable and Outdated Components"
+                ],
+                "triage": "false_positive"
+              }
+            },
+            {
+              "id": "JS-AUDIT-047",
+              "name": "currentUser allows client-selected fields (password leak via ?fields=password)",
+              "shortDescription": {
+                "text": "currentUser allows client-selected fields (password leak via ?fields=password)"
+              },
+              "fullDescription": {
+                "text": "The /rest/user/whoami endpoint lets the caller pick which user-object fields are returned via `?fields=...`. There is no allow-list, so `?fields=password,totpSecret` returns the user's MD5 hash and TOTP secret. The route even includes a `passwordHashLeakChallenge` that solves on success, proving exploitability."
+              },
+              "help": {
+                "text": "Recommended fix: Replace dynamic field projection with a static, allow-listed subset (id, email, profileImage, lastLoginIp).",
+                "markdown": "## currentUser allows client-selected fields (password leak via ?fields=password)\n\n**CWE:** CWE-200\n\n**OWASP:** A01:2021-Broken Access Control\n\n### Exploitation\n\nThe /rest/user/whoami endpoint lets the caller pick which user-object fields are returned via `?fields=...`. There is no allow-list, so `?fields=password,totpSecret` returns the user's MD5 hash and TOTP secret. The route even includes a `passwordHashLeakChallenge` that solves on success, proving exploitability.\n\n### Recommended Fix\n\nReplace dynamic field projection with a static, allow-listed subset (id, email, profileImage, lastLoginIp)."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "security-severity": "7.5",
+                "tags": [
+                  "info_disclosure",
+                  "broken_access_control"
+                ],
+                "precision": "high",
+                "cwe": [
+                  "CWE-200"
+                ],
+                "owasp": [
+                  "A01:2021-Broken Access Control"
+                ],
+                "triage": "confirmed"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "JS-AUDIT-001",
+          "level": "error",
+          "message": {
+            "text": "POST /rest/user/login passes req.body.email directly into a raw template literal SQL query. Sending email='\\' OR 1=1--' is a textbook tautology bypass that returns the first row (the admin) and the route then issues a JWT for that user via security.authorize(). No parameterization, no escaping, no allow-list. The result is full admin takeover from an entirely unauthenticated request."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/login.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 34
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "9.8",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-002",
+          "level": "error",
+          "message": {
+            "text": "GET /rest/products/search?q= is reachable without authentication and concatenates the query parameter directly into raw SQL. Because the database is SQLite the attacker can append a UNION SELECT statement to exfiltrate Users (emails, MD5 password hashes) and sqlite_master (table schemas). The route code itself solves a 'unionSqlInjectionChallenge' by detecting if user rows leak via this primitive, which proves it is exploitable end-to-end."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/search.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 23
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "9.1",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-003",
+          "level": "error",
+          "message": {
+            "text": "The full 1024-bit RSA private key used by security.authorize() to sign all session JWTs (RS256) is checked into source. Anyone who reads the public GitHub repo can mint a JWT with `data.role=\"admin\"` for any user id and bypass every authentication and authorization check in the application. The matching `encryptionkeys/jwt.pub` is the corresponding public key used for verification. This is the single most catastrophic finding."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 23
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "9.8",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-004",
+          "level": "error",
+          "message": {
+            "text": "User passwords are stored as bare MD5 hashes (no salt, no key-stretching). MD5 is broken for password hashing — modern GPUs hash hundreds of GH/s. Combined with the UNION SQLi (JS-AUDIT-002), every password becomes trivially crackable by rainbow tables / hashcat. Even without SQLi, the hashing function is used in 'authorize'-equivalent flows server-side."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 43
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "8.2",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-005",
+          "level": "error",
+          "message": {
+            "text": "Security-answer 'hashes' in SecurityAnswers table are HMAC-SHA256 with a static, public secret. With the secret in the repo any attacker who reads the SecurityAnswers row can precompute HMACs offline (or just submit known answers) to reset a victim's password via /rest/user/reset-password (routes/resetPassword.ts:41 compares `security.hmac(answer) === data.answer`). It also disables HMAC's collision resistance assumption."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 44
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "8.1",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-006",
+          "level": "error",
+          "message": {
+            "text": "package.json pins express-jwt@0.1.3 and jsonwebtoken@0.4.0 — both are wildly out of date. express-jwt prior to 5.3.3 (GHSA-6cwn-77pq-3fpx) does not enforce `algorithms`, so an attacker can craft a token with header `alg:none` (no signature) and bypass auth on every middleware-protected route. jsonwebtoken<=4.2.1 has the original verification-bypass CVE. Combined with the hardcoded public key being downloadable from /encryptionkeys/jwt.pub, the attacker can also forge HS256 tokens signed with the public key as a symmetric secret."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 54
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "9.1",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-007",
+          "level": "error",
+          "message": {
+            "text": "`denyAll` is wired into critical routes (PUT/DELETE /api/Users/:id, DELETE /api/Products/:id, /api/Challenges, /api/Hints, /api/SecurityQuestions, /api/Recycles/:id, etc.). Because of the express-jwt 0.1.3 alg:none bug above, a token with `alg:none` would skip secret validation entirely. Even without that, Math.random() is non-cryptographic and predictable; an attacker who can guess one secret can mint tokens. The bigger issue is that 'deny all' is implemented as 'verify with a random secret' instead of a hard 403, which is fundamentally wrong."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 55
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-008",
+          "level": "error",
+          "message": {
+            "text": "isRedirectAllowed() returns true if the *attacker-supplied URL* contains an allowlisted string anywhere. Therefore `/redirect?to=https://evil.example.com/?x=https://github.com/juice-shop/juice-shop` passes the check and the server returns a 302 to evil.example.com. Used for phishing / credential harvesting / token exfil. CodeQL (alert 3) confirms."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 138
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.4",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-009",
+          "level": "error",
+          "message": {
+            "text": "The route reads the logged-in user's own username from the DB. If it matches `#{...}` the inner expression is passed to JavaScript `eval()` *server-side*. Any authenticated user can therefore execute arbitrary Node.js code in the server process by updating their own username via PATCH /api/Users/:id or POST /profile. Additionally, the `profileImage` field is interpolated unsanitised into a Content-Security-Policy header (line 88), letting the same user weaken/override CSP and achieve persistent XSS. This is full server-side RCE."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/userProfile.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 62
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "9.6",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-010",
+          "level": "error",
+          "message": {
+            "text": "`notevil` (1.3.3) has had multiple documented sandbox escapes (e.g. accessing constructor chains via prototype lookups to reach `Function('return process')()`). It is not a security boundary. With the hardcoded RSA key (JS-AUDIT-003) an attacker can mint a B2B token, then POST {orderLinesData: \"<payload>\"} to /b2b/v2/orders and obtain RCE. Even without escape, infinite-loop / billion-laughs style payloads trigger reliable DoS (the code itself acknowledges this with rceOccupyChallenge)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/b2bOrder.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 23
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "9.1",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-011",
+          "level": "error",
+          "message": {
+            "text": "The check `absolutePath.includes(path.resolve('.'))` only ensures the resolved path *contains* the project root; it does NOT prevent traversal. An entry path like `../../../../../<projectRoot>/etc/whatever` would still satisfy the check on some layouts. Even if traversal were blocked, the stream destination uses the raw `fileName` from the zip entry (line 45) without sanitisation, so symlink overwrite of files under uploads/complaints is possible. There is also no decompressed-size limit (zip-bomb DoS)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/fileUpload.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 44
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "8.1",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-012",
+          "level": "error",
+          "message": {
+            "text": "`noent: true` enables external entity expansion. The code itself parses the result for /etc/passwd-style content (matchesEtcPasswdFile) confirming exploitability. Used for arbitrary local file disclosure (SYSTEM \"file:///etc/passwd\") and for billion-laughs DoS — both are acknowledged in source (xxeFileDisclosureChallenge / xxeDosChallenge)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/fileUpload.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 83
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "8.6",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-013",
+          "level": "warning",
+          "message": {
+            "text": "js-yaml.load (vs safeLoad) historically supported custom tags that could instantiate JS objects; even modern versions allow YAML anchors causing exponential reference expansion (yaml-bomb). The route already detects yamlBombChallenge confirming DoS exploitability. The 200KB upload limit (server.ts:681) only bounds linear input — billion-laughs amplification is post-decode."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/fileUpload.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 117
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "6.5",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-014",
+          "level": "error",
+          "message": {
+            "text": "Registration is unauthenticated and goes through finale auto-CRUD. The model permits role in {customer, deluxe, accounting, admin}, and there is no whitelist of registration-permitted attributes. Posting {email, password, role:'admin'} creates an admin account directly. server.ts:407-419 even includes `registerAdminChallenge()` to *detect* this exploitation, confirming the route is exploitable."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "server.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 419
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "9.8",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-015",
+          "level": "error",
+          "message": {
+            "text": "Finale exposes full CRUD on User, Product, Feedback, BasketItem, Complaint, Recycle, SecurityQuestion, SecurityAnswer, Address, PrivacyRequest, Card, Hint. Authorization is bolted on per-endpoint with a fragile mix of denyAll/isAuthorized; any missing entry (e.g. PUT /api/Products/:id is commented out at line 369) immediately becomes a privilege escalation. Customers can PATCH products, set their own prices, etc. The model itself permits role admin (see JS-AUDIT-014)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "server.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 482
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "8.1",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-016",
+          "level": "error",
+          "message": {
+            "text": "Three sensitive directories are publicly browseable: ftp/ contains incident-support.kdbx (KeePass db), package.json.bak, coupons_2013.md.bak, suspicious_errors.yml, encrypt.pyc; encryptionkeys/ exposes the JWT public key (used for forgery alongside JS-AUDIT-003) and premium.key; logs/ exposes raw morgan access logs. Combined with the file-serving routes' permissive allowlist (servePublicFiles allows .md/.pdf or the literal name 'incident-support.kdbx'), this is a direct data exfiltration channel."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "server.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 269
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-017",
+          "level": "error",
+          "message": {
+            "text": "The user-supplied `imageUrl` is fetched server-side with no scheme, host, or DNS restriction. An attacker can probe internal services (cloud metadata at 169.254.169.254/latest/meta-data/, internal admin panels, redis, etc.) and either receive the body back via image content or use timing/error oracles. If fetch fails, the URL is then stored as the user's profileImage and rendered into CSP/HTML — yielding stored XSS via the CSP-string injection chain with JS-AUDIT-009."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/profileImageUrlUpload.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 24
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "8.6",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-018",
+          "level": "error",
+          "message": {
+            "text": "MarsDB's $where passes the string into a Function() constructor (Dependabot DEP-005 \"Command Injection in marsdb\"). With the 60-char truncated path the attacker can send `' || 1 || '` to dump all orders, or supply `'; return process.mainModule.require('child_process').execSync('id'); //` style payloads for remote code execution inside the Node process. CodeQL alerts 22/23 flag the same."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/trackOrder.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 18
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "8.6",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-019",
+          "level": "error",
+          "message": {
+            "text": "Same MarsDB $where issue. An attacker can drive the server into a long-running blocking sleep (the route exposes a global `sleep` helper, deliberately for DoS), exfiltrate timing oracles, and combined with prototype walking, reach process objects."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/showProductReviews.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 36
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "8.6",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-020",
+          "level": "error",
+          "message": {
+            "text": "The filter `_id` is whatever the user sends — including operators like `{$ne: null}` which match every document. With multi:true a single PATCH overwrites every review in the database. No ownership check (review.author == user.email) is performed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/updateProductReviews.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 17
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.7",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-021",
+          "level": "error",
+          "message": {
+            "text": "appendUserId() writes req.body.UserId, but body fields submitted by the client overwrite/merge. By POSTing {UserId: <victimId>, balance: 1000000} the attacker drains/credits arbitrary wallets. The same body field also controls the SELECT and the card ownership check."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/wallet.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 12
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "8.1",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-022",
+          "level": "error",
+          "message": {
+            "text": "MemoryModel query uses req.body.UserId (mass-assigned by appendUserId() but client-overridable). Attacker harvests other users' memories. Orders/reviews are queried by the logged-in email (better) but the memories leak is sufficient for a privacy breach."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/dataExport.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 26
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.7",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-023",
+          "level": "error",
+          "message": {
+            "text": "Same pattern: appendUserId puts UserId in body but the body can be tampered with. Read/delete arbitrary addresses."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/address.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 18
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-024",
+          "level": "warning",
+          "message": {
+            "text": "Body-supplied UserId + the paymentMode branch only checks card/wallet if those modes are *named*. Omitting paymentMode skips payment entirely and still promotes the chosen UserId to 'deluxe', as the route's freeDeluxeChallenge helper confirms."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/deluxe.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 19
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "6.5",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-025",
+          "level": "error",
+          "message": {
+            "text": "If `current` is absent the check is *skipped entirely*, allowing any session holder to set a new password without proving knowledge of the old one. The route is GET (line uses req.query — confirmed by CodeQL alerts 14-16 'js/sensitive-get-query'), so any cross-origin `<img src=/rest/user/change-password?new=hacked&repeat=hacked>` performs the change with the victim's ambient cookie token. No CSRF protection. Passwords also end up in browser history, proxies, and access logs."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/changePassword.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 39
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "9.6",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-026",
+          "level": "warning",
+          "message": {
+            "text": "`app.enable('trust proxy')` (line 342) plus a header-derived rate-limit key allows an attacker to rotate X-Forwarded-For on every request, making the limit ineffective. This unblocks security-answer guessing against /rest/user/reset-password (combined with JS-AUDIT-005 hardcoded HMAC secret, full account takeover is feasible)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "server.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 346
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.3",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-027",
+          "level": "error",
+          "message": {
+            "text": "The route is mounted at server.ts:605 with no auth and serializes the entire `config` object — leaking application secrets that may be present in node-config layers (challenge keys, hashes, ctf flags, etc.). 'admin' in the path is purely cosmetic."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/appConfiguration.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 10
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-028",
+          "level": "error",
+          "message": {
+            "text": "Parsing `req.params.id` as JSON lets an attacker pass `{\"$gt\":0}` or other Sequelize operator objects into the where clause, dumping the entire Recycles table. Throws on bad input, but valid JSON objects/operators are accepted directly."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/recycles.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 14
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.4",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-029",
+          "level": "error",
+          "message": {
+            "text": "If `application.chatBot.trainingData` is configured to a URL, the server fetches *unauthenticated* code-influencing data over the network with no integrity check (no checksum/signature). Anyone able to MITM or compromise the host serving the training data can change bot intents — including ones that influence the `handler` dispatch through botUtils. CodeQL flags the property-injection pattern (alerts 50-54)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/chatbot.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 36
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.2",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-030",
+          "level": "warning",
+          "message": {
+            "text": "Alchemy API key is committed to the repo. Anyone can quota-drain or abuse the project's Alchemy account. The same key appears in routes/nftMint.ts:16. While Sepolia is testnet, billing/throttling still applies and the owner is responsible."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/web3Wallet.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 18
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.3",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-031",
+          "level": "error",
+          "message": {
+            "text": "Default cors() reflects the request Origin and responds with Access-Control-Allow-Origin matching any caller. Combined with cookie-based JWT (security.updateAuthenticatedUsers reads req.cookies.token) and bearer tokens in localStorage, any third-party page can read responses cross-origin. This nullifies same-origin protections for the entire API."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "server.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 182
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.4",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-032",
+          "level": "warning",
+          "message": {
+            "text": "Globally rewriting req.url after Express parses it can desynchronise router matching from the URL the application thinks it is serving (e.g. for swagger, static files, and HTTP cache keys). Combined with the redirect/file-server allowlists that match on substrings, this provides additional bypass surface."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "server.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 203
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.3",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-033",
+          "level": "warning",
+          "message": {
+            "text": "The `errorhandler` package is intended for development; it renders full HTML stack traces including local file paths, source lines, and stack frames. It is mounted unconditionally. Many routes intentionally call next(err) on edge cases, leaking implementation detail and aiding further attack. CodeQL js/stack-trace-exposure flags individual instances too (alerts 7-13)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "server.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 676
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.3",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-034",
+          "level": "warning",
+          "message": {
+            "text": "Prometheus metrics include process metrics (memory, CPU, event-loop lag), request counts/labels (revealing endpoints), and a custom file-upload histogram. Useful for an attacker mapping the API surface and confirming successful exploitation (e.g. when memory spikes on yaml-bomb)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "server.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 718
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.3",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-035",
+          "level": "error",
+          "message": {
+            "text": "Disallowing only '/' is insufficient — '%2e%2e%2f' and other encodings, and on some platforms '\\\\', bypass the filter. servePublicFiles additionally allows the literal `incident-support.kdbx`, exposing a KeePass database, and uses `cutOffPoisonNullByte` to enable %00-truncation attacks on its extension allowlist (so attacker can serve any file by appending `.md%00`). serveLogFiles and serveKeyFiles use the same naive `/`-only guard."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/keyServer.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 14
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-036",
+          "level": "warning",
+          "message": {
+            "text": "req.body is spread into hbs locals and req.body.layout influences template lookup. A targeted `layout` value can pull arbitrary file content into the rendered view (the code itself solves lfrChallenge). The denylist is substring-based and case-toggled, so encodings or unrelated paths still slip through."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/dataErasure.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 69
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "6.1",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-037",
+          "level": "error",
+          "message": {
+            "text": "Full 16-digit PANs stored as integers — no tokenization, no encryption-at-rest, and no PCI segregation. Combined with the UNION SQLi (JS-AUDIT-002) every card becomes exfiltratable. This would be a PCI-DSS violation on day one."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "models/card.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 39
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "8.1",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-038",
+          "level": "note",
+          "message": {
+            "text": "CodeQL js/file-system-race identifies a TOCTOU between lstat and readFile. Practically the path is the repo's own source tree and runs at boot from a trusted FS, so impact is low. Worth fixing for correctness."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/codingChallenges.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 29
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "3.1",
+            "triage": "needs_review"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-039",
+          "level": "note",
+          "message": {
+            "text": "CodeQL flagged log-injection in lib/challengeUtils.ts (alert 49). The challenge.key here is internal not user-input, so direct injection is limited. Per the engagement rules we exclude pure log-injection findings — marking needs_review only because logs are publicly served via /support/logs (see JS-AUDIT-016) which gives the otherwise-low finding a real exfil pathway."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/antiCheat.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 77
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "3.1",
+            "triage": "needs_review"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-040",
+          "level": "warning",
+          "message": {
+            "text": "An HD wallet mnemonic is committed to source. While intentionally used as a challenge target, in production this constitutes an immediate full key compromise. Equality check on the private key uses ===, which is timing-leaking (low risk but worth fixing)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/checkKeys.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 10
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.9",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-041",
+          "level": "error",
+          "message": {
+            "text": "Dependabot lists 6 DoS advisories for multer<2.1.1 including CVE-2026-3520, all of which crash or memory-leak the Node process on crafted multipart requests. /file-upload, /profile/image/file, /rest/memories are all reachable on any deployment. Engagement guidance flags pure DoS as informational normally, but in a real production deployment this is a high-priority availability bug."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-042",
+          "level": "error",
+          "message": {
+            "text": "Project pins sanitize-html@1.4.2 (Dependabot alerts 2,3,6,7,11,12,18). Multiple XSS-bypass and ReDoS advisories apply. The function is called on usernames/emails in models/user.ts and is also used by sanitizeSecure for legacy XSS protection. This directly enables persistent XSS in the storefront."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.4",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-043",
+          "level": "error",
+          "message": {
+            "text": "Dependabot alert 5 'Command Injection in marsdb' — `DocumentMatcher` selectors on $where pass through `new Function(...)`. With no maintainer fix, the only mitigation is to eliminate $where usage (currently used in trackOrder/showProductReviews/likeProductReviews paths)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/mongodb.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 7
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "9.0",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-044",
+          "level": "warning",
+          "message": {
+            "text": "Dependabot alert 13: a crafted Socket.IO packet triggers an unhandled 'error' event killing the Node process. server.ts wires registerWebsocketEvents which uses socket.io."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.3",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-045",
+          "level": "warning",
+          "message": {
+            "text": "Dependabot 22: a 55-byte malformed ASF header stalls the event loop indefinitely. profileImageFileUpload pipes the user-supplied buffer through fileType.fromBuffer. Stalling the single Node thread blocks all requests."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "5.3",
+            "triage": "confirmed"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-046",
+          "level": "none",
+          "message": {
+            "text": "CodeQL flagged js/polynomial-redos. The repeated `(.)*` is polynomial, not exponential, and the route already incurs a network fetch right after, so any ReDoS spike is dwarfed by the SSRF I/O. Per engagement rules ReDoS without demonstrated impact is excluded. Marking as false_positive while the underlying SSRF (JS-AUDIT-017) carries the real risk."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/profileImageUrlUpload.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 20
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "0.0",
+            "triage": "false_positive"
+          }
+        },
+        {
+          "ruleId": "JS-AUDIT-047",
+          "level": "error",
+          "message": {
+            "text": "The /rest/user/whoami endpoint lets the caller pick which user-object fields are returned via `?fields=...`. There is no allow-list, so `?fields=password,totpSecret` returns the user's MD5 hash and TOTP secret. The route even includes a `passwordHashLeakChallenge` that solves on success, proving exploitability."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/currentUser.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 30
+                }
+              }
+            }
+          ],
+          "properties": {
+            "security-severity": "7.5",
+            "triage": "confirmed"
+          }
+        }
+      ],
+      "columnKind": "utf16CodeUnits"
+    }
+  ]
+}
