@@ -11,7 +11,7 @@ import jwt, { type JwtPayload, type VerifyErrors } from 'jsonwebtoken'
 import * as challengeUtils from '../lib/challengeUtils'
 import logger from '../lib/logger'
 import config from 'config'
-import download from 'download'
+
 import * as utils from '../lib/utils'
 import { isString } from 'lodash'
 import Bot from 'juicy-chat-bot'
@@ -31,10 +31,15 @@ export async function initializeChatbot () {
   }
 
   initializationPromise = (async () => {
+    // SECURITY (JS-AUDIT-029 / CWE-494): remote training data is no
+    // longer fetched at runtime. Pulling a code-influencing artifact
+    // over an unauthenticated channel without integrity verification is
+    // a supply-chain risk. The bot now ALWAYS uses the bundled training
+    // set in data/static/botDefaultTrainingData.json. To use a custom
+    // training file in development set application.chatBot.trainingData
+    // to a relative path that is shipped in the repository.
     if (utils.isUrl(trainingFile)) {
-      const file = utils.extractFilename(trainingFile)
-      const data = await download(trainingFile)
-      await fs.writeFile('data/chatbot/' + file, data)
+      throw new Error('chatBot.trainingData must reference a bundled file, not a URL')
     }
 
     await fs.copyFile(
@@ -103,10 +108,18 @@ async function processQuery (user: User, req: Request, res: Response, next: Next
   try {
     const response = await bot.respond(req.body.query, `${user.id}`)
     if (response.action === 'function') {
+      // SECURITY (JS-AUDIT-029 / CWE-94): whitelist the handler name
+      // against a static map. Previously any property of the imported
+      // `botUtils` module could be invoked via dynamic indexing, which
+      // is a property-injection sink whenever the training data is
+      // attacker-controlled.
+      const ALLOWED_HANDLERS = new Set(['productPrice', 'couponCode', 'functionTest'])
       // @ts-expect-error FIXME unclean usage of any type as index
-      if (response.handler && botUtils[response.handler]) {
-        // @ts-expect-error FIXME unclean usage of any type as index
-        res.status(200).json(await botUtils[response.handler](req.body.query, user))
+      const handlerName: string = response.handler
+      // @ts-expect-error FIXME unclean usage of any type as index
+      const handlerFn = (ALLOWED_HANDLERS.has(handlerName) && typeof botUtils[handlerName] === 'function') ? botUtils[handlerName] : undefined
+      if (handlerFn) {
+        res.status(200).json(await handlerFn(req.body.query, user))
       } else {
         res.status(200).json({
           action: 'response',

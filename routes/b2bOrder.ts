@@ -3,38 +3,58 @@
  * SPDX-License-Identifier: MIT
  */
 
-import vm from 'node:vm'
 import { type Request, type Response, type NextFunction } from 'express'
-// @ts-expect-error FIXME due to non-existing type definitions for notevil
-import { eval as safeEval } from 'notevil'
 
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
-import * as utils from '../lib/utils'
+
+// SECURITY (JS-AUDIT-010 / CWE-94): the previous implementation passed
+// the raw `orderLinesData` body field through `notevil`'s safeEval inside
+// a Node `vm` context. `notevil` has documented sandbox escapes and is
+// not a security boundary; the route was a confirmed RCE/DoS vector.
+//
+// The B2B endpoint now expects structured JSON describing an order. Any
+// non-object payload is rejected outright. No user-supplied expression
+// is ever evaluated.
+
+interface B2bOrderLine {
+  productId: number
+  quantity: number
+  customerReference?: string
+  couponCode?: string
+}
+
+interface B2bOrderRequest {
+  cid?: string
+  orderLinesData?: B2bOrderLine[]
+}
+
+function isValidOrderLine (line: any): line is B2bOrderLine {
+  return (
+    line !== null && typeof line === 'object' &&
+    Number.isInteger(line.productId) && line.productId > 0 &&
+    Number.isInteger(line.quantity) && line.quantity > 0 && line.quantity <= 1000 &&
+    (line.customerReference === undefined || typeof line.customerReference === 'string') &&
+    (line.couponCode === undefined || typeof line.couponCode === 'string')
+  )
+}
 
 export function b2bOrder () {
-  return ({ body }: Request, res: Response, next: NextFunction) => {
-    if (utils.isChallengeEnabled(challenges.rceChallenge) || utils.isChallengeEnabled(challenges.rceOccupyChallenge)) {
-      const orderLinesData = body.orderLinesData || ''
-      try {
-        const sandbox = { safeEval, orderLinesData }
-        vm.createContext(sandbox)
-        vm.runInContext('safeEval(orderLinesData)', sandbox, { timeout: 2000 })
-        res.json({ cid: body.cid, orderNo: uniqueOrderNumber(), paymentDue: dateTwoWeeksFromNow() })
-      } catch (err) {
-        if (utils.getErrorMessage(err).match(/Script execution timed out.*/) != null) {
-          challengeUtils.solveIf(challenges.rceOccupyChallenge, () => { return true })
-          res.status(503)
-          next(new Error('Sorry, we are temporarily not available! Please try again later.'))
-        } else {
-          challengeUtils.solveIf(challenges.rceChallenge, () => { return utils.getErrorMessage(err) === 'Infinite loop detected - reached max iterations' })
-          next(err)
-        }
+  return (req: Request<unknown, unknown, B2bOrderRequest>, res: Response, next: NextFunction) => {
+    const body = req.body ?? {}
+    const orderLines = body.orderLinesData
+
+    if (orderLines !== undefined) {
+      if (!Array.isArray(orderLines) || orderLines.length > 100 || !orderLines.every(isValidOrderLine)) {
+        res.status(400).json({ error: 'orderLinesData must be an array of valid order line objects (max 100).' })
+        return
       }
-    } else {
-      res.json({ cid: body.cid, orderNo: uniqueOrderNumber(), paymentDue: dateTwoWeeksFromNow() })
     }
+
+    res.json({
+      cid: body.cid,
+      orderNo: uniqueOrderNumber(),
+      paymentDue: dateTwoWeeksFromNow()
+    })
   }
 
   function uniqueOrderNumber () {

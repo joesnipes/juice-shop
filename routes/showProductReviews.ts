@@ -5,37 +5,28 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { type Review } from 'data/types'
 import * as db from '../data/mongodb'
 import * as utils from '../lib/utils'
 
-// Blocking sleep function as in native MongoDB
-// @ts-expect-error FIXME Type safety broken for global object
-global.sleep = (time: number) => {
-  // Ensure that users don't accidentally dos their servers for too long
-  if (time > 2000) {
-    time = 2000
-  }
-  const stop = new Date().getTime()
-  while (new Date().getTime() < stop + time) {
-    ;
-  }
-}
+// Note: the previous module exposed a global `sleep()` helper specifically
+// to amplify the NoSQL DoS challenge. Removed — global state for DoS
+// amplification is not appropriate in production.
 
 export function showProductReviews () {
-  return (req: Request, res: Response, next: NextFunction) => {
-    // Truncate id to avoid unintentional RCE
-    const id = !utils.isChallengeEnabled(challenges.noSqlCommandChallenge) ? Number(req.params.id) : utils.trunc(req.params.id, 40)
+  return (req: Request, res: Response, _next: NextFunction) => {
+    // SECURITY (JS-AUDIT-019 / CWE-94): replace `$where` (which executes
+    // a JavaScript Function constructor with attacker-influenced source)
+    // with a typed equality predicate. Strictly coerce the path parameter
+    // to a positive integer.
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: 'Invalid product id' })
+      return
+    }
 
-    // Measure how long the query takes, to check if there was a nosql dos attack
-    const t0 = new Date().getTime()
-
-    db.reviewsCollection.find({ $where: 'this.product == ' + id }).then((reviews: Review[]) => {
-      const t1 = new Date().getTime()
-      challengeUtils.solveIf(challenges.noSqlCommandChallenge, () => { return (t1 - t0) > 2000 })
+    db.reviewsCollection.find({ product: id }).then((reviews: Review[]) => {
       const user = security.authenticatedUsers.from(req)
       for (let i = 0; i < reviews.length; i++) {
         if (user === undefined || reviews[i].likedBy.includes(user.data.email)) {

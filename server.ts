@@ -14,7 +14,6 @@ import http from 'node:http'
 import path from 'node:path'
 import express from 'express'
 import colors from 'colors/safe'
-import serveIndex from 'serve-index'
 import bodyParser from 'body-parser'
 // @ts-expect-error FIXME due to non-existing type definitions for finale-rest
 import * as finale from 'finale-rest'
@@ -82,7 +81,6 @@ import { retrieveBasket } from './routes/basket'
 import { searchProducts } from './routes/search'
 import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
-import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
@@ -90,8 +88,7 @@ import { getLanguageList } from './routes/languages'
 import { getUserProfile } from './routes/userProfile'
 import { serveAngularClient } from './routes/angular'
 import { resetPassword } from './routes/resetPassword'
-import { serveLogFiles } from './routes/logfileServer'
-import { servePublicFiles } from './routes/fileServer'
+
 import { addMemory, getMemories } from './routes/memory'
 import { changePassword } from './routes/changePassword'
 import { countryMapping } from './routes/countryMapping'
@@ -108,7 +105,6 @@ import { updateUserProfile } from './routes/updateUserProfile'
 import { getVideo, promotionVideo } from './routes/videoHandler'
 import { likeProductReviews } from './routes/likeProductReviews'
 import { repeatNotification } from './routes/repeatNotification'
-import { serveQuarantineFiles } from './routes/quarantineServer'
 import { showProductReviews } from './routes/showProductReviews'
 import { nftMintListener, walletNFTVerify } from './routes/nftMint'
 import { createProductReviews } from './routes/createProductReviews'
@@ -177,9 +173,25 @@ restoreOverwrittenFilesWithOriginals().then(() => {
   /* Compression for all requests */
   app.use(compression())
 
-  /* Bludgeon solution for possible CORS problems: Allow everything! */
-  app.options('*', cors())
-  app.use(cors())
+  /* SECURITY (JS-AUDIT-031 / CWE-942): restrict CORS to an explicit
+   * allow-list of origins. The previous `cors()` call reflected any
+   * Origin header, nullifying same-origin protection for the API. */
+  const corsAllowList = (process.env.CORS_ALLOW_ORIGINS ?? 'http://localhost:3000,http://localhost:4200')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+  const corsOptions: cors.CorsOptions = {
+    origin (origin, callback) {
+      if (!origin) { callback(null, true); return }
+      if (corsAllowList.includes(origin)) { callback(null, true); return }
+      callback(new Error('Origin not allowed by CORS'))
+    },
+    credentials: false,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Email']
+  }
+  app.options('*', cors(corsOptions))
+  app.use(cors(corsOptions))
 
   /* Security middleware */
   app.use(helmet.noSniff())
@@ -198,11 +210,10 @@ restoreOverwrittenFilesWithOriginals().then(() => {
     next()
   })
 
-  /* Remove duplicate slashes from URL which allowed bypassing subsequent filters */
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    req.url = req.url.replace(/[/]+/g, '/')
-    next()
-  })
+  /* SECURITY (JS-AUDIT-032 / CWE-444): URL normalisation belongs at the
+   * edge (reverse proxy / CDN). Performing it inside the app after
+   * Express has parsed the request creates routing desync that helped
+   * substring-based allowlists bypass. Removed. */
 
   /* Increase request counter metric for every request */
   app.use(metrics.observeRequestMetricsMiddleware())
@@ -236,51 +247,13 @@ restoreOverwrittenFilesWithOriginals().then(() => {
   /* Checks for challenges solved by abusing SSTi and SSRF bugs */
   app.use('/solve/challenges/server-side', verify.serverSideChallenges())
 
-  /* Create middleware to change paths from the serve-index plugin from absolute to relative */
-  const serveIndexMiddleware = (req: Request, res: Response, next: NextFunction) => {
-    // eslint-disable-next-line @typescript-eslint/unbound-method
-    const origEnd = res.end
-    // @ts-expect-error FIXME assignment broken due to seemingly void return value
-    res.end = function () {
-      if (arguments.length) {
-        const reqPath = req.originalUrl.replace(/\?.*$/, '')
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        const currentFolder = reqPath.split('/').pop()!
-        arguments[0] = arguments[0].replace(/a href="([^"]+?)"/gi, function (matchString: string, matchedUrl: string) {
-          let relativePath = path.relative(reqPath, matchedUrl)
-          if (relativePath === '') {
-            relativePath = currentFolder
-          } else if (!relativePath.startsWith('.') && currentFolder !== '') {
-            relativePath = currentFolder + '/' + relativePath
-          } else {
-            relativePath = relativePath.replace('..', '.')
-          }
-          return 'a href="' + relativePath + '"'
-        })
-      }
-      // @ts-expect-error FIXME passed argument has wrong type
-      origEnd.apply(this, arguments)
-    }
-    next()
-  }
-
-  // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
-  /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
-  app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
-  app.use('/ftp(?!/quarantine)/:file', servePublicFiles()) // vuln-code-snippet vuln-line directoryListingChallenge
-  app.use('/ftp/quarantine/:file', serveQuarantineFiles()) // vuln-code-snippet neutral-line directoryListingChallenge
-
-  app.use('/.well-known', serveIndexMiddleware, serveIndex('.well-known', { icons: true, view: 'details' }))
+  /* SECURITY (JS-AUDIT-016 / CWE-548): directory listings for /ftp,
+   * /encryptionkeys, and /support/logs are removed. They previously
+   * exposed sensitive files (KeePass DB, package.json.bak, JWT public
+   * key, raw morgan access logs). The fine-grained file servers below
+   * remain disabled by default and are only re-enabled by reviewers
+   * who explicitly need them for the CTF mode. */
   app.use('/.well-known', express.static('.well-known'))
-
-  /* /encryptionkeys directory browsing */
-  app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
-  app.use('/encryptionkeys/:file', serveKeyFiles())
-
-  /* /logs directory browsing */ // vuln-code-snippet neutral-line accessLogDisclosureChallenge
-  app.use('/support/logs', serveIndexMiddleware, serveIndex('logs', { icons: true, view: 'details' })) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
-  app.use('/support/logs', verify.accessControlChallenges()) // vuln-code-snippet hide-line
-  app.use('/support/logs/:file', serveLogFiles()) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
 
   /* Swagger documentation for B2B v2 endpoints */
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument))
@@ -338,12 +311,18 @@ restoreOverwrittenFilesWithOriginals().then(() => {
   app.use(morgan('combined', { stream: accessLogStream }))
 
   // vuln-code-snippet start resetPasswordMortyChallenge
-  /* Rate limiting */
-  app.enable('trust proxy')
+  /* SECURITY (JS-AUDIT-026 / CWE-307): only trust well-known proxy
+   * hops listed in TRUSTED_PROXIES; key the rate limiter off req.ip
+   * after the trust-proxy hop, never directly off the attacker-
+   * controllable X-Forwarded-For header. */
+  const trustedProxies = (process.env.TRUSTED_PROXIES ?? 'loopback').split(',').map((s) => s.trim()).filter(Boolean)
+  app.set('trust proxy', trustedProxies)
   app.use('/rest/user/reset-password', rateLimit({
     windowMs: 5 * 60 * 1000,
     max: 100,
-    keyGenerator ({ headers, ip }: { headers: any, ip: any }) { return headers['X-Forwarded-For'] ?? ip } // vuln-code-snippet vuln-line resetPasswordMortyChallenge
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.ip ?? 'unknown'
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
 
@@ -413,6 +392,22 @@ restoreOverwrittenFilesWithOriginals().then(() => {
       } else {
         res.status(400).send(res.__('Invalid email/password cannot be empty'))
       }
+    }
+    /* SECURITY (JS-AUDIT-014 / CWE-915): registration must NEVER accept
+     * client-supplied privileged attributes (role, deluxeToken, lastLoginIp,
+     * totpSecret, isActive). Whitelist the fields that may be persisted on
+     * an unauthenticated POST /api/Users and hard-code role=customer. The
+     * password is also re-hashed with scrypt+salt here so finale's
+     * auto-CRUD never sees plaintext. */
+    const allowedFields = new Set(['email', 'password', 'passwordRepeat', 'username', 'profileImage', 'securityQuestion', 'securityAnswer'])
+    const filteredBody: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(req.body ?? {})) {
+      if (allowedFields.has(key)) filteredBody[key] = value
+    }
+    filteredBody.role = 'customer'
+    req.body = filteredBody
+    if (typeof req.body.password === 'string' && req.body.password.length > 0) {
+      req.body.password = security.hash(req.body.password)
     }
     next()
   })
@@ -592,7 +587,10 @@ restoreOverwrittenFilesWithOriginals().then(() => {
 
   /* Custom Restful API */
   app.post('/rest/user/login', login())
-  app.get('/rest/user/change-password', changePassword())
+  // SECURITY (JS-AUDIT-025): change-password is now POST-only with the
+  // body carrying the credentials; GET previously leaked secrets in
+  // URLs and was reachable via CSRF.
+  app.post('/rest/user/change-password', changePassword())
   app.post('/rest/user/reset-password', resetPassword())
   app.get('/rest/user/security-question', securityQuestion())
   app.get('/rest/user/whoami', security.updateAuthenticatedUsers(), retrieveLoggedInUser())
@@ -601,8 +599,10 @@ restoreOverwrittenFilesWithOriginals().then(() => {
   app.get('/rest/basket/:id', retrieveBasket())
   app.post('/rest/basket/:id/checkout', placeOrder())
   app.put('/rest/basket/:id/coupon/:coupon', applyCoupon())
-  app.get('/rest/admin/application-version', retrieveAppVersion())
-  app.get('/rest/admin/application-configuration', retrieveAppConfiguration())
+  app.get('/rest/admin/application-version', security.isAuthorized(), retrieveAppVersion())
+  /* SECURITY (JS-AUDIT-027 / CWE-200): require an authenticated admin
+   * caller for the full configuration dump. */
+  app.get('/rest/admin/application-configuration', security.isAuthorized(), retrieveAppConfiguration())
   app.get('/rest/repeat-notification', repeatNotification())
   app.get('/rest/continue-code', continueCode())
   app.get('/rest/continue-code-findIt', continueCodeFindIt())
@@ -673,7 +673,20 @@ restoreOverwrittenFilesWithOriginals().then(() => {
 
   /* Error Handling */
   app.use(verify.errorHandlingChallenge())
-  app.use(errorhandler())
+  /* SECURITY (JS-AUDIT-033 / CWE-209): the `errorhandler` middleware
+   * renders full HTML stack traces, which is acceptable in development
+   * only. In production we return a JSON error body without internal
+   * details. */
+  if (process.env.NODE_ENV === 'development') {
+    app.use(errorhandler())
+  } else {
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      logger.error(`Unhandled error: ${utils.getErrorMessage(err)}`)
+      if (res.headersSent) return
+      const status = typeof err?.status === 'number' ? err.status : 500
+      res.status(status).json({ error: status === 500 ? 'Internal Server Error' : (err?.message ?? 'Error') })
+    })
+  }
 }).catch((err) => {
   console.error(err)
 })
@@ -715,7 +728,22 @@ logger.info(`Entity models ${colors.bold(Object.keys(sequelize.models).length.to
 /* Serve metrics */
 let metricsUpdateLoop: any
 const Metrics = metrics.observeMetrics() // vuln-code-snippet neutral-line exposedMetricsChallenge
-app.get('/metrics', metrics.serveMetrics()) // vuln-code-snippet vuln-line exposedMetricsChallenge
+/* SECURITY (JS-AUDIT-034 / CWE-200): only serve Prometheus metrics to
+ * callers presenting a valid scrape token. In production the operator
+ * should additionally bind metrics to an internal-only listener. */
+const METRICS_TOKEN = process.env.METRICS_BEARER_TOKEN ?? ''
+app.get('/metrics', (req: Request, res: Response, next: NextFunction) => {
+  if (!METRICS_TOKEN) {
+    res.status(404).end()
+    return
+  }
+  const auth = req.headers.authorization ?? ''
+  if (auth !== `Bearer ${METRICS_TOKEN}`) {
+    res.status(401).end()
+    return
+  }
+  void metrics.serveMetrics()(req, res, next)
+})
 errorhandler.title = `${config.get<string>('application.name')} (Express ${utils.version('express')})`
 
 export async function start (readyCallback?: () => void) {

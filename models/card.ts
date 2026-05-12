@@ -12,6 +12,15 @@ import {
   type CreationOptional,
   type Sequelize
 } from 'sequelize'
+
+// SECURITY (JS-AUDIT-037 / CWE-311 + PCI-DSS): NEVER persist full PANs.
+// The previous schema stored a 16-digit integer with no tokenisation.
+// The hook below truncates any submitted card number down to the last
+// four digits BEFORE the row is written, so even if a caller sends a
+// full PAN the database never sees more than the last four. A
+// `paymentToken` column is added so the application can store a
+// reference to a PCI-compliant processor (e.g. Stripe) for actual
+// charging.
 class Card extends Model<
 InferAttributes<Card>,
 InferCreationAttributes<Card>
@@ -20,8 +29,16 @@ InferCreationAttributes<Card>
   declare id: CreationOptional<number>
   declare fullName: string
   declare cardNum: number
+  declare paymentToken: CreationOptional<string | null>
   declare expMonth: number
   declare expYear: number
+}
+
+function lastFourOf (value: number | string | null | undefined): number {
+  if (value == null) return 0
+  const digits = String(value).replace(/\D/g, '')
+  if (!digits) return 0
+  return Number(digits.slice(-4))
 }
 
 const CardModelInit = (sequelize: Sequelize) => {
@@ -38,11 +55,17 @@ const CardModelInit = (sequelize: Sequelize) => {
       fullName: DataTypes.STRING,
       cardNum: {
         type: DataTypes.INTEGER,
+        // Validation relaxed because we deliberately truncate to last 4
+        // digits in the beforeValidate hook below.
         validate: {
           isInt: true,
-          min: 1000000000000000,
-          max: 9999999999999998
+          min: 0,
+          max: 9999999999999998 // tolerate inbound full PAN that will be truncated
         }
+      },
+      paymentToken: {
+        type: DataTypes.STRING,
+        allowNull: true
       },
       expMonth: {
         type: DataTypes.INTEGER,
@@ -62,6 +85,13 @@ const CardModelInit = (sequelize: Sequelize) => {
       }
     },
     {
+      hooks: {
+        beforeValidate (card: Card) {
+          if (card.cardNum != null) {
+            card.cardNum = lastFourOf(card.cardNum)
+          }
+        }
+      },
       tableName: 'Cards',
       sequelize
     }

@@ -4,22 +4,26 @@
  */
 
 import * as utils from '../lib/utils'
-import * as challengeUtils from '../lib/challengeUtils'
 import { type Request, type Response } from 'express'
 import * as db from '../data/mongodb'
-import { challenges } from '../data/datacache'
 
 export function trackOrder () {
   return (req: Request, res: Response) => {
-    // Truncate id to avoid unintentional RCE
-    const id = !utils.isChallengeEnabled(challenges.reflectedXssChallenge) ? String(req.params.id).replace(/[^\w-]+/g, '') : utils.trunc(req.params.id, 60)
+    // SECURITY (JS-AUDIT-018 / CWE-94): the previous handler injected the
+    // path parameter into a MarsDB `$where` selector, which is implemented
+    // via `new Function(...)` (NoSQL/code injection). We now validate the
+    // id to a strict alphanumeric/hyphen pattern and pass it as an
+    // equality match — `$where` is never invoked.
+    const rawId = String(req.params.id ?? '')
+    if (!/^[\w-]{1,60}$/.test(rawId)) {
+      res.status(400).json({ error: 'Invalid order id format' })
+      return
+    }
 
-    challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(id, '<iframe src="javascript:alert(`xss`)">') })
-    db.ordersCollection.find({ $where: `this.orderId === '${id}'` }).then((order: any) => {
+    db.ordersCollection.find({ orderId: rawId }).then((order: any) => {
       const result = utils.queryResultToJson(order)
-      challengeUtils.solveIf(challenges.noSqlOrdersChallenge, () => { return result.data.length > 1 })
       if (result.data[0] === undefined) {
-        result.data[0] = { orderId: id }
+        result.data[0] = { orderId: rawId }
       }
       res.json(result)
     }, () => {

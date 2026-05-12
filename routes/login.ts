@@ -10,7 +10,6 @@ import { challenges, users } from '../data/datacache'
 import { BasketModel } from '../models/basket'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
-import * as models from '../models/index'
 import { type User } from '../data/types'
 import * as utils from '../lib/utils'
 
@@ -31,8 +30,22 @@ export function login () {
 
   return (req: Request, res: Response, next: NextFunction) => {
     verifyPreLoginChallenges(req) // vuln-code-snippet hide-line
-    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge
-      .then((authenticatedUser) => { // vuln-code-snippet neutral-line loginAdminChallenge loginBenderChallenge loginJimChallenge
+    const email = typeof req.body.email === 'string' ? req.body.email : ''
+    const password = typeof req.body.password === 'string' ? req.body.password : ''
+    // SECURITY (JS-AUDIT-001 / CWE-89): parameterised query via Sequelize
+    // model + verifyPassword (scrypt) replaces the previous string-template
+    // SQL that allowed authentication bypass via tautology injection.
+    UserModel.findOne({
+      where: {
+        email,
+        deletedAt: null
+      }
+    })
+      .then((authenticatedUser) => {
+        if (!authenticatedUser || !security.verifyPassword(password, authenticatedUser.password)) {
+          res.status(401).send(res.__('Invalid email or password.'))
+          return
+        }
         const user = utils.queryResultToJson(authenticatedUser)
         if (user.data?.id && user.data.totpSecret !== '') {
           res.status(401).json({
