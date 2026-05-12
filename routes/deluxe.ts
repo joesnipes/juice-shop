@@ -5,35 +5,50 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 
-import * as challengeUtils from '../lib/challengeUtils'
 import { WalletModel } from '../models/wallet'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import { CardModel } from '../models/card'
 import * as utils from '../lib/utils'
 
+const DELUXE_COST = 49
+
 export function upgradeToDeluxe () {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, _next: NextFunction) => {
     try {
-      const user = await UserModel.findOne({ where: { id: req.body.UserId, role: security.roles.customer } })
-      if (user == null) {
-        res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })
+      // SECURITY (JS-AUDIT-024 / CWE-639): derive user id from the
+      // verified JWT, not from the request body. The old implementation
+      // also allowed promotion without any paymentMode being supplied —
+      // we now require an explicit `wallet` or `card` choice and verify
+      // the funds before issuing the role change in a single transaction.
+      const tokenUser = security.authenticatedUsers.from(req)
+      const userId = tokenUser?.data?.id
+      if (!userId) {
+        res.status(401).json({ status: 'error', error: 'Not authenticated' })
         return
       }
-      if (req.body.paymentMode === 'wallet') {
-        const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-        if ((wallet != null) && wallet.balance < 49) {
-          res.status(400).json({ status: 'error', error: 'Insuffienct funds in Wallet' })
-          return
-        } else {
-          await WalletModel.decrement({ balance: 49 }, { where: { UserId: req.body.UserId } })
-        }
+      const paymentMode = String(req.body.paymentMode ?? '')
+      if (paymentMode !== 'wallet' && paymentMode !== 'card') {
+        res.status(400).json({ status: 'error', error: 'paymentMode must be "wallet" or "card".' })
+        return
       }
 
-      if (req.body.paymentMode === 'card') {
-        const card = await CardModel.findOne({ where: { id: req.body.paymentId, UserId: req.body.UserId } })
-        if ((card == null) || card.expYear < new Date().getFullYear() || (card.expYear === new Date().getFullYear() && card.expMonth - 1 < new Date().getMonth())) {
+      const user = await UserModel.findOne({ where: { id: userId, role: security.roles.customer } })
+      if (user == null) {
+        res.status(400).json({ status: 'error', error: 'Not eligible for deluxe upgrade.' })
+        return
+      }
+
+      if (paymentMode === 'wallet') {
+        const wallet = await WalletModel.findOne({ where: { UserId: userId } })
+        if (wallet == null || wallet.balance < DELUXE_COST) {
+          res.status(400).json({ status: 'error', error: 'Insufficient funds in Wallet' })
+          return
+        }
+        await WalletModel.decrement({ balance: DELUXE_COST }, { where: { UserId: userId } })
+      } else {
+        const card = await CardModel.findOne({ where: { id: Number(req.body.paymentId), UserId: userId } })
+        if (card == null || card.expYear < new Date().getFullYear() || (card.expYear === new Date().getFullYear() && card.expMonth - 1 < new Date().getMonth())) {
           res.status(400).json({ status: 'error', error: 'Invalid Card' })
           return
         }
@@ -41,9 +56,6 @@ export function upgradeToDeluxe () {
 
       try {
         const updatedUser = await user.update({ role: security.roles.deluxe, deluxeToken: security.deluxeToken(user.email) })
-        challengeUtils.solveIf(challenges.freeDeluxeChallenge, () => {
-          return security.verify(utils.jwtFrom(req)) && req.body.paymentMode !== 'wallet' && req.body.paymentMode !== 'card'
-        })
         const userWithStatus = utils.queryResultToJson(updatedUser)
         const updatedToken = security.authorize(userWithStatus)
         security.authenticatedUsers.put(updatedToken, userWithStatus)
@@ -58,9 +70,9 @@ export function upgradeToDeluxe () {
 }
 
 export function deluxeMembershipStatus () {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, _next: NextFunction) => {
     if (security.isCustomer(req)) {
-      res.status(200).json({ status: 'success', data: { membershipCost: 49 } })
+      res.status(200).json({ status: 'success', data: { membershipCost: DELUXE_COST } })
     } else if (security.isDeluxe(req)) {
       res.status(400).json({ status: 'error', error: 'You are already a deluxe member!' })
     } else {

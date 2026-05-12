@@ -23,7 +23,11 @@ export function dataExport () {
 
         let memories, orders, reviews
         try {
-          memories = await MemoryModel.findAll({ where: { UserId: req.body.UserId } })
+          // SECURITY (JS-AUDIT-022 / CWE-639): bind the query to the
+          // server-trusted user id from the verified JWT instead of
+          // the client-supplied req.body.UserId, which previously
+          // allowed cross-user data harvesting.
+          memories = await MemoryModel.findAll({ where: { UserId: loggedInUser.data.id } })
         } catch (error) {
           next(error)
           return

@@ -13,7 +13,14 @@ let isEventListenerCreated = false
 export function nftMintListener () {
   return async (req: Request, res: Response) => {
     try {
-      const provider = new WebSocketProvider('wss://eth-sepolia.g.alchemy.com/v2/FZDapFZSs1l6yhHW4VnQqsi18qSd-3GJ')
+      // SECURITY (JS-AUDIT-030 / CWE-798): load from env; rotate the
+      // previously-leaked Alchemy key before deployment.
+      const alchemyUrl = process.env.ALCHEMY_WSS_URL
+      if (!alchemyUrl) {
+        res.status(503).json({ success: false, message: 'Web3 provider not configured' })
+        return
+      }
+      const provider = new WebSocketProvider(alchemyUrl)
       const contract = new Contract(nftAddress, nftABI, provider)
       if (!isEventListenerCreated) {
         void contract.on('NFTMinted', (minter: string) => {

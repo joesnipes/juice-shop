@@ -3,13 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 import express, { type NextFunction, type Request, type Response } from 'express'
-import path from 'node:path'
 
 import { SecurityQuestionModel } from '../models/securityQuestion'
 import { PrivacyRequestModel } from '../models/privacyRequests'
 import { SecurityAnswerModel } from '../models/securityAnswer'
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 
@@ -65,29 +62,16 @@ router.post('/', async (req: Request<Record<string, unknown>, Record<string, unk
     })
 
     res.clearCookie('token')
-    if (req.body.layout) {
-      const filePath: string = path.resolve(req.body.layout).toLowerCase()
-      const isForbiddenFile: boolean = (filePath.includes('ftp') || filePath.includes('ctf.key') || filePath.includes('encryptionkeys'))
-      if (!isForbiddenFile) {
-        res.render('dataErasureResult', {
-          ...req.body
-        }, (error, html) => {
-          if (!html || error) {
-            next(new Error(error.message))
-          } else {
-            const sendlfrResponse: string = html.slice(0, 100) + '......'
-            res.send(sendlfrResponse)
-            challengeUtils.solveIf(challenges.lfrChallenge, () => { return true })
-          }
-        })
-      } else {
-        next(new Error('File access not allowed'))
-      }
-    } else {
-      res.render('dataErasureResult', {
-        ...req.body
-      })
-    }
+    /* SECURITY (JS-AUDIT-036 / CWE-73): the layout/template is always
+     * the fixed `dataErasureResult` view. The previous code let the
+     * client choose `layout`, enabling local-file-read via path
+     * traversal. Only render a small, whitelisted subset of the body
+     * (email + securityAnswer) into the view to avoid template-object
+     * injection through `...req.body`. */
+    res.render('dataErasureResult', {
+      email: typeof req.body.email === 'string' ? req.body.email : '',
+      securityAnswer: typeof req.body.securityAnswer === 'string' ? req.body.securityAnswer : ''
+    })
   } catch (error) {
     next(error)
   }

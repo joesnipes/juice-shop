@@ -65,3 +65,14 @@ config/*.yml
 
 # System Files
 .DS_Store
+
+# Secrets / sensitive material — see .env.example
+.env
+.env.*
+!.env.example
+encryptionkeys/*.key
+encryptionkeys/*.pem
+ftp/*.bak
+ftp/*.kdbx
+ftp/incident-support.kdbx
+ftp/encrypt.pyc

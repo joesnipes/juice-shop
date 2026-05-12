@@ -4,12 +4,10 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op } from 'sequelize'
 
 import * as utils from '../lib/utils'
-import * as models from '../models/index'
-import { UserModel } from '../models/user'
-import { challenges } from '../data/datacache'
-import * as challengeUtils from '../lib/challengeUtils'
+import { ProductModel } from '../models/product'
 
 class ErrorWithParent extends Error {
   parent: Error | undefined
@@ -20,47 +18,25 @@ export function searchProducts () {
   return (req: Request, res: Response, next: NextFunction) => {
     let criteria: any = req.query.q === 'undefined' ? '' : req.query.q ?? ''
     criteria = (criteria.length <= 200) ? criteria : criteria.substring(0, 200)
-    models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`) // vuln-code-snippet vuln-line unionSqlInjectionChallenge dbSchemaChallenge
-      .then(([products]: any) => {
-        const dataString = JSON.stringify(products)
-        if (challengeUtils.notSolved(challenges.unionSqlInjectionChallenge)) { // vuln-code-snippet hide-start
-          let solved = true
-          UserModel.findAll().then(data => {
-            const users = utils.queryResultToJson(data)
-            if (users.data?.length) {
-              for (let i = 0; i < users.data.length; i++) {
-                solved = solved && utils.containsOrEscaped(dataString, users.data[i].email) && utils.contains(dataString, users.data[i].password)
-                if (!solved) {
-                  break
-                }
-              }
-              if (solved) {
-                challengeUtils.solve(challenges.unionSqlInjectionChallenge)
-              }
-            }
-          }).catch((error: Error) => {
-            next(error)
-          })
-        }
-        if (challengeUtils.notSolved(challenges.dbSchemaChallenge)) {
-          let solved = true
-          void models.sequelize.query('SELECT sql FROM sqlite_master').then(([data]: any) => {
-            const tableDefinitions = utils.queryResultToJson(data)
-            if (tableDefinitions.data?.length) {
-              for (let i = 0; i < tableDefinitions.data.length; i++) {
-                if (tableDefinitions.data[i].sql) {
-                  solved = solved && utils.containsOrEscaped(dataString, tableDefinitions.data[i].sql)
-                  if (!solved) {
-                    break
-                  }
-                }
-              }
-              if (solved) {
-                challengeUtils.solve(challenges.dbSchemaChallenge)
-              }
-            }
-          })
-        } // vuln-code-snippet hide-end
+    // SECURITY (JS-AUDIT-002 / CWE-89): replace raw string-template SQL
+    // with Sequelize model where-clause. The `like` operator below is
+    // safely escaped by the driver and cannot host UNION SELECT payloads.
+    const likePattern = `%${criteria}%`
+    ProductModel.findAll({
+      where: {
+        [Op.and]: [
+          { deletedAt: null },
+          { [Op.or]: [{ name: { [Op.like]: likePattern } }, { description: { [Op.like]: likePattern } }] }
+        ]
+      },
+      order: [['name', 'ASC']]
+    })
+      .then((products: ProductModel[]) => {
+        // Challenge detection paths that previously relied on the raw-SQL
+        // UNION injection are no longer reachable now that the query is
+        // parameterised. The challenge state remains driven by the seeded
+        // data plus the other challenge endpoints; we intentionally do
+        // not re-introduce a vulnerable code path to "solve" them.
         for (let i = 0; i < products.length; i++) {
           products[i].name = req.__(products[i].name)
           products[i].description = req.__(products[i].description)
