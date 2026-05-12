@@ -6,6 +6,7 @@ temperature: 0.0
 permission:
   edit: ask
   webfetch: deny
+  websearch: deny
   bash:
     "*": ask
     "docker*": ask

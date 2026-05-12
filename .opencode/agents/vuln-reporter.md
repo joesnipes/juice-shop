@@ -6,7 +6,8 @@ model: anthropic/claude-sonnet-4-5
 temperature: 0.0
 permission:
   edit: allow
-  webfetch: allow
+  webfetch: ask
+  websearch: ask
   bash:
     "*": ask
     "git *": allow

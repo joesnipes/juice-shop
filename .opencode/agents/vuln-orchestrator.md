@@ -6,6 +6,7 @@ temperature: 0.2
 permission:
   edit: allow
   webfetch: allow
+  websearch: allow
   bash:
     "*": ask
     "python*": allow

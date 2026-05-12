@@ -6,7 +6,8 @@ model: opencode/minimax-m2.5-free
 temperature: 0.0
 permission:
   edit: allow
-  webfetch: allow
+  webfetch: ask
+  websearch: ask
   bash:
     "*": ask
     "docker*": ask
