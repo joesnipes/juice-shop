@@ -1,0 +1,75 @@
+{
+  "threat_model_version": "1.0.0",
+  "last_updated": "2026-05-11T23:53:59Z",
+  "security_team_contacts": [],
+  "compliance_requirements": [
+    "PCI_DSS",
+    "GDPR",
+    "SOC2"
+  ],
+  "scan_frequency": "on_commit",
+  "severity_thresholds": {
+    "block_merge": [
+      "CRITICAL"
+    ],
+    "require_review": [
+      "HIGH",
+      "CRITICAL"
+    ],
+    "notify_security_team": [
+      "CRITICAL"
+    ]
+  },
+  "vulnerability_patterns": {
+    "enabled": [
+      "sql_injection",
+      "nosql_injection",
+      "xss",
+      "command_injection",
+      "path_traversal",
+      "zip_slip",
+      "ssrf",
+      "xxe",
+      "yaml_deserialization_or_bomb",
+      "auth_bypass",
+      "jwt_misuse",
+      "idor",
+      "mass_assignment",
+      "sensitive_data_exposure",
+      "csrf",
+      "cors_misconfiguration",
+      "rate_limit_missing"
+    ],
+    "custom_patterns_path": null
+  },
+  "triage_focus": {
+    "architecture": "Express TypeScript backend with Angular SPA, SQLite Sequelize models, MarsDB collections, filesystem-backed uploads/logs/PDFs, Socket.IO, chatbot, Web3 endpoints.",
+    "highest_priority_components": [
+      "lib/insecurity.ts",
+      "routes/login.ts",
+      "server.ts route registration and generated CRUD authorization",
+      "routes/fileUpload.ts",
+      "routes/profileImageUrlUpload.ts",
+      "routes/order.ts",
+      "routes/payment.ts",
+      "data/mongodb.ts",
+      "frontend authentication/token handling"
+    ],
+    "dependency_hotspots": [
+      "jsonwebtoken",
+      "express-jwt",
+      "jws",
+      "libxmljs2",
+      "js-yaml",
+      "unzipper",
+      "multer",
+      "sanitize-html",
+      "serve-index",
+      "finale-rest",
+      "marsdb",
+      "socket.io",
+      "codemirror",
+      "snarkdown"
+    ]
+  }
+}
