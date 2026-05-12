@@ -4,12 +4,16 @@ mode: subagent
 model: opencode/minimax-m2.5-free
 temperature: 0.0
 permission:
-  edit: allow
+  edit: ask
   webfetch: deny
+  websearch: deny
   bash:
     "*": ask
     "docker*": ask
     "python*": ask
+    "ls*": ask
+  task:
+    "*": deny
 ---
 
 This template defines the structure for `threat-model.md`. When generating a threat model, follow this structure and replace all `{placeholder}` values with actual content.

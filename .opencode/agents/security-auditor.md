@@ -6,10 +6,14 @@ temperature: 0.2
 permission:
   edit: allow
   webfetch: allow
+  websearch: allow
   bash:
-    "*": allow
+    "*": ask
     "docker*": ask
     "python*": allow
+    "ls*": allow
+  task:
+    "*": deny
 ---
 
 # Security Review

@@ -6,11 +6,15 @@ temperature: 0.4
 permission:
   edit: allow
   webfetch: allow
+  websearch: allow
   bash:
-    "*": allow
+    "*": ask
+    "docker*": ask
     "python*": allow
     "ls*": allow
     "rg*": allow
+  task:
+    "stride-*": allow
 ---
 
 # Threat Model Generation

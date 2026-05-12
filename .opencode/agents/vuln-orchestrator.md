@@ -5,16 +5,15 @@ model: openai/gpt-5.5
 temperature: 0.2
 permission:
   edit: allow
-  webfetch: ask
+  webfetch: allow
+  websearch: allow
   bash:
-    "*": allow
+    "*": ask
     "python*": allow
     "pip*": allow
     "docker*": allow
-    "git status*": allow
     "ls*": allow
   task:
-    "*": allow
     "vuln-*": allow
     "threat-*": allow
     "stride-*": allow

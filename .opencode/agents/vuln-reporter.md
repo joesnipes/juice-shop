@@ -6,10 +6,15 @@ model: openai/gpt-5.3-codex
 temperature: 0.0
 permission:
   edit: allow
-  webfetch: allow
+  webfetch: ask
+  websearch: ask
   bash:
-    "*": allow
+    "*": ask
+    "git *": allow
+    "gh *": allow
     "python*": allow
+  task:
+    "*": deny
 ---
 You produce deterministic report outputs of vulnerabilities found by other sub-agents. Your job is to coordinate the results into a standard format that provides consistency across other projects as well as future scans. 
 
