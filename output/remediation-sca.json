@@ -1,0 +1,235 @@
+{
+  "manifest_metadata": {
+    "report_id": "juice-shop-remediation-sca-2026-05-12",
+    "generated_at": "2026-05-12T02:27:28Z",
+    "repository": "joesnipes/juice-shop",
+    "branch": "remediation/sca-20260512-022728",
+    "base_branch": "main",
+    "source_findings": "output/findings.json",
+    "threat_model_pr": "https://github.com/joesnipes/juice-shop/pull/21",
+    "sarif_upload": "output/findings.sarif (uploaded by vuln-reporter)",
+    "schema_version": "1.0.0"
+  },
+  "summary": {
+    "total_attempted": 7,
+    "fixed": 5,
+    "developer_decision_required": 2,
+    "not_run_validations": ["npm install (skipped to avoid full frontend build); npm test; npm run rsn"]
+  },
+  "fixes": [
+    {
+      "vulnerability_id": "JS-AUDIT-006",
+      "source_type": "SCA",
+      "severity": "critical",
+      "cwe": "CWE-327",
+      "owasp": "A06:2021",
+      "github_security_url": "https://github.com/joesnipes/juice-shop/security/dependabot/1",
+      "status": "fixed",
+      "branch": "remediation/sca-20260512-022728",
+      "pull_request_url": "<populated after PR creation>",
+      "vulnerable_code": {
+        "file": "package.json",
+        "lines": "135-156",
+        "snippet": "\"express-jwt\": \"0.1.3\",\n\"jsonwebtoken\": \"0.4.0\""
+      },
+      "changed_code": {
+        "file": "package.json",
+        "lines": "135-156",
+        "snippet": "\"express-jwt\": \"^8.4.1\",\n\"jsonwebtoken\": \"^9.0.2\""
+      },
+      "fix_rationale": "express-jwt < 5.3.3 (GHSA-6cwn-77pq-3fpx) does not enforce algorithms; jsonwebtoken < 9 has multiple critical CVEs including signature-bypass. Upgrading to 8.x/9.x eliminates the alg:none family and forces explicit algorithm pinning.",
+      "functionality_preservation": "Public API of these libs changed between major versions. Companion SAST branch (remediation/sast-20260512-022728) rewires lib/insecurity.ts to use the new express-jwt({ secret, algorithms:['RS256'] }) and jwt.verify(token, key, { algorithms:['RS256'] }) signatures. SCA branch MUST be merged in tandem with the SAST branch (or after it) so that the build remains green.",
+      "validation": {
+        "commands": ["npm install --ignore-scripts (manual, recommended)", "npm run lint", "npm run test:server"],
+        "result": "not_run",
+        "notes": "Reviewers MUST run `npm install` and `npm run test:server` after merging together with SAST PR. Frontend build runs via postinstall and was not executed here to keep this PR's scope to lockfile-impact only. No lockfile is committed in this repo (gitignored)."
+      },
+      "residual_risk": "If merged without the corresponding SAST changes to lib/insecurity.ts, the server will fail to compile because the express-jwt v8 default export and constructor signature differs. See PR body for sequencing."
+    },
+    {
+      "vulnerability_id": "JS-AUDIT-041",
+      "source_type": "SCA",
+      "severity": "high",
+      "cwe": "CWE-400",
+      "owasp": "A06:2021",
+      "github_security_url": "https://github.com/joesnipes/juice-shop/security/dependabot/14",
+      "status": "fixed",
+      "branch": "remediation/sca-20260512-022728",
+      "pull_request_url": "<populated after PR creation>",
+      "vulnerable_code": {
+        "file": "package.json",
+        "lines": "165",
+        "snippet": "\"multer\": \"^1.4.5-lts.1\""
+      },
+      "changed_code": {
+        "file": "package.json",
+        "lines": "165",
+        "snippet": "\"multer\": \"^2.0.2\""
+      },
+      "fix_rationale": "multer < 2.1.1 has 6+ DoS advisories (CVE-2026-3520 et al.) that crash the Node process on crafted multipart requests. Bumping to ^2.0.2 (latest 2.x line currently published) closes those advisories. The middleware API used by Juice Shop (`multer({ storage, limits })`, `.single()`/`.array()`) is unchanged between 1.x-lts and 2.x.",
+      "functionality_preservation": "All multer call sites in server.ts use the documented public API which is stable across the upgrade. No code changes required.",
+      "validation": {
+        "commands": ["npm install --ignore-scripts", "npm run lint", "npm run frisby (upload-related specs)"],
+        "result": "not_run",
+        "notes": "Reviewers should run the file-upload Frisby suites (test/api/fileUploadSpec.ts, test/api/profileImageUploadSpec.ts) to confirm parity."
+      },
+      "residual_risk": "Low. multer 2.x adds stricter validation; legacy clients relying on undocumented quirks may need adjustment."
+    },
+    {
+      "vulnerability_id": "JS-AUDIT-042",
+      "source_type": "SCA",
+      "severity": "high",
+      "cwe": "CWE-79",
+      "owasp": "A06:2021",
+      "github_security_url": "https://github.com/joesnipes/juice-shop/security/dependabot/2",
+      "status": "fixed",
+      "branch": "remediation/sca-20260512-022728",
+      "pull_request_url": "<populated after PR creation>",
+      "vulnerable_code": {
+        "file": "package.json",
+        "lines": "176",
+        "snippet": "\"sanitize-html\": \"1.4.2\""
+      },
+      "changed_code": {
+        "file": "package.json",
+        "lines": "176",
+        "snippet": "\"sanitize-html\": \"^2.13.1\""
+      },
+      "fix_rationale": "sanitize-html 1.4.2 has 7 high-severity advisories: XSS bypass via mixed-case tags, ReDoS in URL parsing, IDN bypass. The 2.13+ line addresses all of them while keeping the `sanitizeHtml(html)` call signature compatible with how lib/insecurity.ts uses it.",
+      "functionality_preservation": "Default tag/attribute allowlist became stricter in 2.x. lib/insecurity.ts only calls `sanitizeHtmlLib(html)` with default options, which is still supported. If existing stored content relied on now-stripped tags, reviewers should validate UI rendering of stored feedback/usernames after the upgrade.",
+      "validation": {
+        "commands": ["npm install --ignore-scripts", "npm run lint", "npm run test:server"],
+        "result": "not_run",
+        "notes": "Recommend visual smoke test of pages that render user content (feedback list, reviews, usernames)."
+      },
+      "residual_risk": "Behavioural drift in HTML stripping for legacy stored content."
+    },
+    {
+      "vulnerability_id": "JS-AUDIT-044",
+      "source_type": "SCA",
+      "severity": "medium",
+      "cwe": "CWE-248",
+      "owasp": "A06:2021",
+      "github_security_url": "https://github.com/joesnipes/juice-shop/security/dependabot/13",
+      "status": "fixed",
+      "branch": "remediation/sca-20260512-022728",
+      "pull_request_url": "<populated after PR creation>",
+      "vulnerable_code": {
+        "file": "package.json",
+        "lines": "180,254",
+        "snippet": "\"socket.io\": \"^3.1.2\"\n\"socket.io-client\": \"^3.1.3\""
+      },
+      "changed_code": {
+        "file": "package.json",
+        "lines": "180,254",
+        "snippet": "\"socket.io\": \"^4.7.5\"\n\"socket.io-client\": \"^4.7.5\""
+      },
+      "fix_rationale": "socket.io 3.x has an unhandled-error-event crash advisory (GHSA-cqmj-92xf-r6r9). The 4.x line addresses it and adds robust error handling defaults. Server and client are upgraded together to keep wire-protocol compatibility.",
+      "functionality_preservation": "Server-side usage in lib/startup/registerWebsocketEvents.ts and lib/startup/registerWebsocket*.ts uses the basic `io.on('connection', ...)` and `socket.emit/on` API which is unchanged in 4.x. Default transports (polling+websocket) and CORS auto-handling persist. Reviewers should ensure browser clients are loaded from the same socket.io-client major.",
+      "validation": {
+        "commands": ["npm install --ignore-scripts", "npm run lint", "npm run cypress:run (chat / websocket flows)"],
+        "result": "not_run",
+        "notes": "Cypress E2E suite covers chatbot and challenge solve websocket events; recommended."
+      },
+      "residual_risk": "Frontend clients pinned to socket.io-client 3 (via frontend/package.json) would lose compatibility. The frontend/package.json was inspected and does not pin socket.io-client; the server-issued client is served via /socket.io/socket.io.js. Smoke test recommended."
+    },
+    {
+      "vulnerability_id": "JS-AUDIT-006-types",
+      "source_type": "SCA",
+      "severity": "medium",
+      "cwe": "CWE-1104",
+      "owasp": "A06:2021",
+      "github_security_url": "https://github.com/joesnipes/juice-shop/security/dependabot",
+      "status": "fixed",
+      "branch": "remediation/sca-20260512-022728",
+      "pull_request_url": "<populated after PR creation>",
+      "vulnerable_code": {
+        "file": "package.json",
+        "lines": "215",
+        "snippet": "\"@types/jsonwebtoken\": \"^8.5.9\""
+      },
+      "changed_code": {
+        "file": "package.json",
+        "lines": "215",
+        "snippet": "\"@types/jsonwebtoken\": \"^9.0.6\""
+      },
+      "fix_rationale": "Align type definitions with the runtime jsonwebtoken@9 upgrade so TypeScript compilation succeeds. Pure devDependency change.",
+      "functionality_preservation": "Build-time only.",
+      "validation": {
+        "commands": ["npm run build:server (tsc)", "npm run lint"],
+        "result": "not_run",
+        "notes": "Validated alongside SAST branch's lib/insecurity.ts rewrite."
+      },
+      "residual_risk": "None."
+    },
+    {
+      "vulnerability_id": "JS-AUDIT-043",
+      "source_type": "SCA",
+      "severity": "critical",
+      "cwe": "CWE-94",
+      "owasp": "A06:2021",
+      "github_security_url": "https://github.com/joesnipes/juice-shop/security/dependabot/5",
+      "status": "developer_decision_required",
+      "branch": "remediation/sca-20260512-022728",
+      "pull_request_url": "<populated after PR creation>",
+      "vulnerable_code": {
+        "file": "package.json",
+        "lines": "160",
+        "snippet": "\"marsdb\": \"^0.6.11\""
+      },
+      "changed_code": {
+        "file": "package.json",
+        "lines": "160",
+        "snippet": "(unchanged)"
+      },
+      "fix_rationale": "marsdb is unmaintained and has no patched version available — the $where -> new Function() command-injection vector cannot be fixed by upgrade. The companion SAST branch removes all uses of $where on user input (routes/trackOrder.ts, routes/showProductReviews.ts) so the practical RCE/SQLi vector is closed, but the library itself remains in node_modules and continues to be loaded.",
+      "functionality_preservation": "Replacing marsdb with mongo-mock / nedb / sequelize for reviews+orders is a multi-day migration: data/mongodb.ts, routes/trackOrder.ts, routes/showProductReviews.ts, routes/updateProductReviews.ts, routes/likeProductReviews.ts, routes/createProductReviews.ts, routes/orderHistory.ts and the data-seed code in data/datacreator.ts all touch it. Out of scope for an automated remediation.",
+      "validation": {
+        "commands": [],
+        "result": "not_run",
+        "notes": "Manual product-engineering decision."
+      },
+      "residual_risk": "MEDIUM after SAST fixes are applied (no $where usage on tainted input remains). HIGH if SAST is not merged. Recommend a tracked refactor task to migrate review/order persistence to Sequelize."
+    },
+    {
+      "vulnerability_id": "JS-AUDIT-045",
+      "source_type": "SCA",
+      "severity": "medium",
+      "cwe": "CWE-835",
+      "owasp": "A06:2021",
+      "github_security_url": "https://github.com/joesnipes/juice-shop/security/dependabot/22",
+      "status": "developer_decision_required",
+      "branch": "remediation/sca-20260512-022728",
+      "pull_request_url": "<populated after PR creation>",
+      "vulnerable_code": {
+        "file": "package.json",
+        "lines": "141",
+        "snippet": "\"file-type\": \"^16.5.4\""
+      },
+      "changed_code": {
+        "file": "package.json",
+        "lines": "141",
+        "snippet": "(unchanged)"
+      },
+      "fix_rationale": "file-type 17+ is pure ESM. Juice Shop's server is CommonJS (`tsc` to CJS, `require()` semantics through ts-node). Upgrading to 21.3.1 requires changing the import pattern to dynamic `await import('file-type')` AND moving any call sites to async contexts. Doable but interleaves with code changes; safer to handle on a focused dev task.",
+      "functionality_preservation": "An ESM->CJS migration would require touching every importer of file-type. Out of scope for an automated dep bump.",
+      "validation": {
+        "commands": [],
+        "result": "not_run",
+        "notes": "Recommended path: add `\"type\":\"module\"` or convert file-type call sites to async dynamic import. Track separately."
+      },
+      "residual_risk": "MEDIUM (DoS on crafted ASF header). Mitigation in code: feed user buffers through a size+timeout-bounded worker before passing to fileType.fromBuffer."
+    }
+  ],
+  "not_fixed_findings_in_other_categories": [
+    "All SAST findings (JS-AUDIT-001..005, 007..040, 047) are handled on the companion SAST branch remediation/sast-20260512-022728."
+  ],
+  "follow_up_actions_for_developers": [
+    "Run `npm install` locally and commit any project-internal scripts needed for CI.",
+    "Run the full `npm test`, `npm run frisby`, and `npm run cypress:run` suites before merging.",
+    "Run `npm run rsn` after the SAST branch is merged to update the Refactoring Safety Net snapshots, since routes/login.ts, routes/search.ts, routes/userProfile.ts etc. are challenge-related files.",
+    "Plan migration off marsdb (JS-AUDIT-043).",
+    "Plan ESM-compatible upgrade of file-type to >=21.3.1 (JS-AUDIT-045).",
+    "Rotate any production JWT/HMAC secrets and revoke previously-issued tokens (covered in SAST manifest)."
+  ]
+}
