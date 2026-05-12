@@ -8,8 +8,10 @@ permission:
   edit: allow
   webfetch: allow
   bash:
-    "*": allow
+    "*": ask
+    "docker*": ask
     "python*": allow
+    "ls*": allow
   task:
     "*": deny
 ---

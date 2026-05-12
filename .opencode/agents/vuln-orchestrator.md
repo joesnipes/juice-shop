@@ -1,20 +1,18 @@
 ---
 description: Orchestrates defender/attacker consensus vulnerability analysis pipeline
 mode: primary
-model: openai/gpt-5.5
+model: anthropic/claude-opus-4-7
 temperature: 0.2
 permission:
   edit: allow
-  webfetch: ask
+  webfetch: allow
   bash:
-    "*": allow
+    "*": ask
     "python*": allow
     "pip*": allow
     "docker*": allow
-    "git status*": allow
     "ls*": allow
   task:
-    "*": allow
     "vuln-*": allow
     "threat-*": allow
     "stride-*": allow

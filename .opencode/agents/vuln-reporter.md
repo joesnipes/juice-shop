@@ -2,14 +2,18 @@
 description: Renders canonical findings into JSON/Markdown/CSV/SARIF and publishes SARIF to GitHub code scanning
 mode: subagent
 hidden: true
-model: openai/gpt-5.3-codex
+model: anthropic/claude-sonnet-4-5
 temperature: 0.0
 permission:
   edit: allow
   webfetch: allow
   bash:
-    "*": allow
+    "*": ask
+    "git *": allow
+    "gh *": allow
     "python*": allow
+  task:
+    "*": deny
 ---
 You produce deterministic report outputs of vulnerabilities found by other sub-agents. Your job is to coordinate the results into a standard format that provides consistency across other projects as well as future scans. 
 

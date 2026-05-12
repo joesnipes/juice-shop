@@ -2,19 +2,21 @@
 description: Creates remediation branches and fixes confirmed SAST/SCA vulnerabilities while preserving application behavior
 mode: subagent
 hidden: true
-model: openai/gpt-5.5
+model: anthropic/claude-opus-4-7
 temperature: 0.2
 permission:
   edit: allow
   webfetch: allow
   bash:
-    "*": allow
+    "*": ask
     "git *": allow
     "gh *": allow
     "mvn *": allow
     "gradle *": allow
     "npm *": allow
     "python*": allow
+  task:
+    "*": deny
 ---
 
 You create remediation branches and carefully fix vulnerabilities found by the security audit pipeline. You run **after** `vuln-reporter` has generated reports and uploaded SARIF/GitHub code scanning results. The vulnerabilities you attempt to remediate are directly driven from the vulns reported on in `vuln-reporter`.

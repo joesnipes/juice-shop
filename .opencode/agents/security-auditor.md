@@ -1,15 +1,18 @@
 ---
 description: Performs a security review of the repository.
 mode: subagent
-model: openai/gpt-5.5
+model: anthropic/claude-opus-4-7
 temperature: 0.2
 permission:
   edit: allow
   webfetch: allow
   bash:
-    "*": allow
+    "*": ask
     "docker*": ask
     "python*": allow
+    "ls*": allow
+  task:
+    "*": deny
 ---
 
 # Security Review

@@ -1,16 +1,19 @@
 ---
 description: Threat model agent that identifies trust boundaries and where controls gaps may exist
 mode: subagent
-model: openai/gpt-5.5
+model: anthropic/claude-opus-4-7
 temperature: 0.4
 permission:
   edit: allow
   webfetch: allow
   bash:
-    "*": allow
+    "*": ask
+    "docker*": ask
     "python*": allow
     "ls*": allow
     "rg*": allow
+  task:
+    "stride-*": allow
 ---
 
 # Threat Model Generation
