@@ -1,0 +1,65 @@
+{
+  "generated_at": "2026-05-11T20:02:06Z",
+  "base_branch": "feature/threat-model-20260511-200043",
+  "branch": "security-fixes/sca-20260511-200206",
+  "entries": [
+    {
+      "vulnerability_id": "JS-PROD-015",
+      "source_type": "SCA",
+      "severity": "medium",
+      "cwe": "CWE-79",
+      "owasp": "A03:2021-Injection",
+      "github_security_url": "https://github.com/joesnipes/juice-shop/security/dependabot/2; https://github.com/joesnipes/juice-shop/security/dependabot/3",
+      "status": "fixed",
+      "branch": "security-fixes/sca-20260511-200206",
+      "pull_request_url": "",
+      "vulnerable_code": {
+        "file": "package.json",
+        "lines": "176,226",
+        "snippet": "\"sanitize-html\": \"1.4.2\"\n\"@types/sanitize-html\": \"^1.27.2\""
+      },
+      "changed_code": {
+        "file": "package.json",
+        "lines": "176,226",
+        "snippet": "\"sanitize-html\": \"^2.17.0\"\n\"@types/sanitize-html\": \"^2.16.0\""
+      },
+      "fix_rationale": "Upgrades the directly used HTML sanitizer from the vulnerable 1.x release to a maintained 2.x release containing XSS bypass fixes while keeping the existing sanitizeHtmlLib(html) call pattern.",
+      "functionality_preservation": "No application code paths or response shapes were changed; user-controlled HTML is still sanitized through the same wrapper with safer library behavior.",
+      "validation": {
+        "commands": ["npm install --package-lock=false --ignore-scripts", "npm run build:server"],
+        "result": "passed",
+        "notes": "Dependency install completed and TypeScript server build passed. npm audit still reports unrelated vulnerabilities outside this confirmed SCA finding."
+      },
+      "residual_risk": "Contextual output encoding remains required at render sites. Additional sanitize-html DoS advisories were triaged false_positive/excluded in the canonical report."
+    },
+    {
+      "vulnerability_id": "JS-PROD-003",
+      "source_type": "SCA",
+      "severity": "critical",
+      "cwe": "CWE-321",
+      "owasp": "A02:2021-Cryptographic Failures",
+      "github_security_url": "https://github.com/joesnipes/juice-shop/security/dependabot/1; https://github.com/joesnipes/juice-shop/security/dependabot/10",
+      "status": "developer_decision_required",
+      "branch": "security-fixes/sca-20260511-200206",
+      "pull_request_url": "",
+      "vulnerable_code": {
+        "file": "package.json",
+        "lines": "156",
+        "snippet": "\"jsonwebtoken\": \"0.4.0\""
+      },
+      "changed_code": {
+        "file": "package.json",
+        "lines": "156",
+        "snippet": "No safe dependency-only change made."
+      },
+      "fix_rationale": "Upgrading jsonwebtoken safely requires coordinated JWT key rotation and code changes because the application signs RS256 tokens with an embedded legacy 1024-bit RSA key. A dependency-only upgrade risks breaking authentication or preserving insecure key settings.",
+      "functionality_preservation": "Authentication behavior was not changed on the SCA branch to avoid an unsafe partial migration.",
+      "validation": {
+        "commands": ["npm install --package-lock=false --ignore-scripts", "npm run build:server"],
+        "result": "passed",
+        "notes": "Validated the SCA branch after the sanitizer upgrade; JWT library was intentionally deferred."
+      },
+      "residual_risk": "JWT verification-bypass dependency alerts remain until maintainers approve coordinated jsonwebtoken upgrade, key rotation, and token compatibility plan."
+    }
+  ]
+}
