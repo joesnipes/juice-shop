@@ -13,6 +13,7 @@ export function retrieveLoggedInUser () {
     let user
     let response: any
     const emptyUser = { id: undefined, email: undefined, lastLoginIp: undefined, profileImage: undefined }
+    const allowedFields = new Set(['id', 'email', 'lastLoginIp', 'profileImage'])
     try {
       if (security.verify(req.cookies.token)) {
         user = security.authenticatedUsers.get(req.cookies.token)
@@ -25,9 +26,9 @@ export function retrieveLoggedInUser () {
         let baseUser: any = {}
 
         if (requestedFields.length > 0) {
-          // When fields are specified, return only those fields
+          // When fields are specified, return only safe public fields
           for (const field of requestedFields) {
-            if (user?.data[field as keyof typeof user.data] !== undefined) {
+            if (allowedFields.has(field) && user?.data[field as keyof typeof user.data] !== undefined) {
               baseUser[field] = user?.data[field as keyof typeof user.data]
             }
           }
